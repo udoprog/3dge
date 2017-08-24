@@ -1,0 +1,11 @@
+[package]
+name = "threedge"
+version = "0.1.0"
+authors = ["John-John Tedro <udoprog@tedro.se>"]
+
+[dependencies]
+vulkano = "0.6"
+vulkano-shader-derive = "0.6"
+vulkano-win = "0.6"
+winit = "*"
+cgmath = "0.15"
