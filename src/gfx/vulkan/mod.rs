@@ -2,7 +2,7 @@ use self::shaders::basic::fs;
 use self::shaders::basic::vs;
 use self::vertex::Vertex;
 use super::{Gfx, GfxLoop};
-use super::errors::*;
+use super::errors::vulkan::*;
 use super::window::Window;
 use cgmath::{Matrix4, Point3, Rad, SquareMatrix, Vector3};
 use std::f32;
@@ -30,10 +30,10 @@ mod shaders;
 mod vertex;
 
 pub type UniformData = vs::ty::Data;
-pub type Ds = DescriptorSet + Send + Sync;
-pub type Rp = framebuffer::RenderPassAbstract + Send + Sync;
-pub type Pl = pipeline::GraphicsPipelineAbstract + Send + Sync;
-pub type Fb = framebuffer::FramebufferAbstract + Send + Sync;
+pub type Ds = DescriptorSet + Send + ::std::marker::Sync;
+pub type Rp = framebuffer::RenderPassAbstract + Send + ::std::marker::Sync;
+pub type Pl = pipeline::GraphicsPipelineAbstract + Send + ::std::marker::Sync;
+pub type Fb = framebuffer::FramebufferAbstract + Send + ::std::marker::Sync;
 
 pub struct VulkanGfxInstance {
     instance: Arc<Instance>,
@@ -64,7 +64,7 @@ impl VulkanGfxInstance {
     {
         let physical = instance::PhysicalDevice::enumerate(&self.instance)
             .next()
-            .ok_or(VulkanError::NoSupportedDevice)?;
+            .ok_or(ErrorKind::NoSupportedDevice)?;
 
         let dimensions = window.dimensions()?;
 
@@ -73,7 +73,7 @@ impl VulkanGfxInstance {
             .find(|&q| {
                 q.supports_graphics() && window.surface().is_supported(q).unwrap_or(false)
             })
-            .ok_or(VulkanError::NoQueueFamily)?;
+            .ok_or(ErrorKind::NoQueueFamily)?;
 
         let (device, mut queues) = {
             let device_ext = device::DeviceExtensions {
@@ -89,13 +89,13 @@ impl VulkanGfxInstance {
             )?
         };
 
-        let queue = queues.next().ok_or(VulkanError::NoQueueAvailable)?;
+        let queue = queues.next().ok_or(ErrorKind::NoQueueAvailable)?;
 
         let (swapchain, images) = {
             let caps = window.surface().capabilities(physical)?;
 
             let alpha = caps.supported_composite_alpha.iter().next().ok_or(
-                VulkanError::NoCompositeAlphaCapability,
+                ErrorKind::NoCompositeAlphaCapability,
             )?;
 
             println!("caps = {:?}", caps);
@@ -187,7 +187,7 @@ impl Gfx for VulkanGfx {
         let render_pass = Arc::new(render_pass);
 
         let sub_pass = Subpass::from(render_pass.clone(), 0).ok_or(
-            VulkanError::NoSubpass,
+            ErrorKind::NoSubpass,
         )?;
 
         let pipeline = Arc::new(GraphicsPipeline::start()
@@ -391,7 +391,7 @@ pub(crate) struct VulkanoWinWindow {
 impl Window for VulkanoWinWindow {
     fn dimensions(&self) -> Result<[u32; 2]> {
         let (width, height) = self.window.window().get_inner_size_pixels().ok_or(
-            VulkanoWinError::NoDimensions,
+            ErrorKind::NoWindowDimensions,
         )?;
 
         Ok([width, height])

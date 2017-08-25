@@ -1,6 +1,6 @@
 use vulkano_win;
 
-mod vulkan_errors {
+pub mod vulkan {
     macro_rules! vulkan_error {
         ( $mod:ident => $name:ident { $( $error:ident; )* } ) => {
             #[derive(Debug)]
@@ -11,7 +11,7 @@ mod vulkan_errors {
             $(
             impl From<$mod::$error> for super::Error {
                 fn from(value: $mod::$error) -> super::Error {
-                    super::Error::Vulkan(super::VulkanError::$name($name::$error(value)))
+                    super::Error::Vulkan(ErrorKind::$name($name::$error(value)))
                 }
             }
             )*
@@ -109,29 +109,33 @@ mod vulkan_errors {
 
     impl From<OomError> for super::Error {
         fn from(value: OomError) -> super::Error {
-            super::Error::Vulkan(super::VulkanError::OomError(value))
+            super::Error::Vulkan(ErrorKind::OomError(value))
         }
     }
-}
 
-#[derive(Debug)]
-pub enum VulkanError {
-    OomError(::vulkano::OomError),
-    NoCompositeAlphaCapability,
-    NoSupportedDevice,
-    NoQueueFamily,
-    NoQueueAvailable,
-    NoSubpass,
-    CommandBuffer(self::vulkan_errors::CommandBuffer),
-    Device(self::vulkan_errors::Device),
-    Framebuffer(self::vulkan_errors::Framebuffer),
-    Instance(self::vulkan_errors::Instance),
-    Memory(self::vulkan_errors::Memory),
-    Pipeline(self::vulkan_errors::Pipeline),
-    Swapchain(self::vulkan_errors::Swapchain),
-    Sync(self::vulkan_errors::Sync),
-    DescriptorSet(self::vulkan_errors::DescriptorSet),
-    CpuAccess(self::vulkan_errors::CpuAccess),
+    #[derive(Debug)]
+    pub enum ErrorKind {
+        OomError(::vulkano::OomError),
+        NoCompositeAlphaCapability,
+        NoSupportedDevice,
+        NoQueueFamily,
+        NoQueueAvailable,
+        NoSubpass,
+        NoWindowDimensions,
+        CommandBuffer(CommandBuffer),
+        Device(Device),
+        Framebuffer(Framebuffer),
+        Instance(Instance),
+        Memory(Memory),
+        Pipeline(Pipeline),
+        Swapchain(Swapchain),
+        Sync(Sync),
+        DescriptorSet(DescriptorSet),
+        CpuAccess(CpuAccess),
+    }
+
+    // result type should have gfx errors, since the backend mostly interfaces with the gfx stack.
+    pub type Result<T> = ::std::result::Result<T, super::Error>;
 }
 
 #[derive(Debug)]
@@ -144,14 +148,14 @@ pub enum VulkanoWinError {
 pub enum Error {
     /// Returned if a backend does not support the given shader.
     UnsupportedShader,
-    Vulkan(VulkanError),
+    Vulkan(vulkan::ErrorKind),
     VulkanoWin(VulkanoWinError),
 }
 
 pub type Result<T> = ::std::result::Result<T, Error>;
 
-impl From<VulkanError> for Error {
-    fn from(value: VulkanError) -> Error {
+impl From<vulkan::ErrorKind> for Error {
+    fn from(value: vulkan::ErrorKind) -> Error {
         Error::Vulkan(value)
     }
 }
