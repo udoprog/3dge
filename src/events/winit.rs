@@ -31,7 +31,7 @@ impl WinitEvents {
         // statement is only run if no other backends are compiled in.
         #[allow(unreachable_code)]
         {
-            return Err(Error::NoCompatibleGfxBackend);
+            return Err(ErrorKind::NoCompatibleGfxBackend.into());
         }
     }
 

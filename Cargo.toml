@@ -11,6 +11,7 @@ gfx-vulkan = ["vulkano", "vulkano-shader-derive", "vulkano-win"]
 winit = "*"
 cgmath = "0.15"
 error-chain = "*"
+bit-vec = "0.4"
 
 [dependencies.vulkano]
 version = "0.6"

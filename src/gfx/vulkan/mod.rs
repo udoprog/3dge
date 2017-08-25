@@ -366,9 +366,9 @@ impl GfxLoop for VulkanGfxLoop {
         Ok(())
     }
 
-    fn rotate_camera(&mut self, rotation: &Matrix4<f32>) -> Result<()> {
+    fn translate_world(&mut self, translation: &Matrix4<f32>) -> Result<()> {
         let world: Matrix4<f32> = self.uniform.world.into();
-        self.uniform.world = (rotation * world).into();
+        self.uniform.world = (translation * world).into();
 
         let uniform_buffer = CpuAccessibleBuffer::<UniformData>::from_data(
             self.device.clone(),

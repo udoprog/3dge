@@ -1,3 +1,6 @@
+use std::error;
+use std::fmt;
+
 #[cfg(feature = "gfx-vulkan")]
 pub mod vulkan {
     pub use super::super::vulkan::errors::*;
@@ -22,5 +25,17 @@ pub type Result<T> = ::std::result::Result<T, Error>;
 impl From<vulkan::ErrorKind> for Error {
     fn from(value: vulkan::ErrorKind) -> Error {
         Error::Vulkan(value)
+    }
+}
+
+impl error::Error for Error {
+    fn description(&self) -> &str {
+        "graphics backend error"
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "graphics backend error")
     }
 }

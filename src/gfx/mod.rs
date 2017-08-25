@@ -15,7 +15,7 @@ pub trait Gfx {
 pub trait GfxLoop {
     fn tick(&mut self) -> Result<()>;
 
-    fn rotate_camera(&mut self, rotation: &Matrix4<f32>) -> Result<()>;
+    fn translate_world(&mut self, translation: &Matrix4<f32>) -> Result<()>;
 }
 
 pub enum GfxBuiltInShader {

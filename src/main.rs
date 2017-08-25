@@ -5,95 +5,101 @@ extern crate cgmath;
 use cgmath::{Matrix4, Rad, SquareMatrix};
 use std::thread;
 use std::time::Duration;
-use std::time::SystemTime;
 
 use threedge::errors::*;
+use threedge::fps_counter::FpsCounter;
+use threedge::pressed_keys::{Key, PressedKeys};
 
-enum Rotation {
-    Left,
-    Right,
+struct Logic {
+    /// Identity matrix. Nothing happens when multipled with it.
+    identity: Matrix4<f32>,
+}
+
+impl Logic {
+    pub fn new() -> Logic {
+        Logic { identity: <Matrix4<f32> as SquareMatrix>::identity() }
+    }
+
+    /// Build movement for a given frame.
+    fn build_movement(&self, keys: &PressedKeys) -> Option<Matrix4<f32>> {
+        let mut movement = None;
+
+        if keys.test(Key::MoveLeft) {
+            movement = Some(
+                movement.unwrap_or(self.identity) * Matrix4::from_angle_y(Rad(-0.1)),
+            );
+        }
+
+        if keys.test(Key::MoveRight) {
+            movement = Some(
+                movement.unwrap_or(self.identity) * Matrix4::from_angle_y(Rad(0.1)),
+            );
+        }
+
+        if keys.test(Key::MoveUp) {
+            movement = Some(
+                movement.unwrap_or(self.identity) * Matrix4::from_angle_x(Rad(-0.1)),
+            );
+        }
+
+        if keys.test(Key::MoveDown) {
+            movement = Some(
+                movement.unwrap_or(self.identity) * Matrix4::from_angle_x(Rad(0.1)),
+            );
+        }
+
+        if keys.test(Key::RollLeft) {
+            movement = Some(
+                movement.unwrap_or(self.identity) * Matrix4::from_angle_z(Rad(-0.1)),
+            );
+        }
+
+        if keys.test(Key::RollRight) {
+            movement = Some(
+                movement.unwrap_or(self.identity) * Matrix4::from_angle_z(Rad(0.1)),
+            );
+        }
+
+        movement
+    }
 }
 
 fn entry() -> Result<()> {
     let mut events = threedge::events::winit::WinitEvents::new()?;
     let (window, gfx) = events.setup_gfx()?;
 
+    let mut refocus = false;
     let mut gfx_loop = gfx.new_loop(&window)?;
-    let mut start = SystemTime::now();
-    let mut frames = 0u64;
     let mut focused = true;
-    let mut rotate_left = false;
-    let mut rotate_right = false;
-    let mut rotate_up = false;
-    let mut rotate_down = false;
-    let mut roll_left = false;
-    let mut roll_right = false;
-
-    let one_sec = Duration::from_secs(1);
+    let mut pressed_keys = PressedKeys::new();
     let ten_ms = Duration::from_millis(10);
+    let logic = Logic::new();
 
-    // no rotation
-    let rotation_identity = <Matrix4<f32> as SquareMatrix>::identity();
+    let mut fps_counter = FpsCounter::new(|fps| {
+        println!("fps = {}", fps);
+        Ok(())
+    });
+
+    let target_frame_length = Duration::from_millis(1000 / 60);
 
     // TODO: abstract away loop into fully event-based engine.
     'main: loop {
+        if refocus {
+            fps_counter.reset()?;
+            refocus = false;
+        }
+
         // only render if focused
         if focused {
-            frames += 1;
-            let now = SystemTime::now();
-
-            if now.duration_since(start).unwrap() > one_sec {
-                println!("fps = {}", frames);
-                frames = 0;
-                start = now;
-            }
-
             gfx_loop.tick()?;
+            fps_counter.tick()?;
         } else {
             // avoid freewheeling
             thread::sleep(ten_ms);
         }
 
-        let mut rotation = None;
-
-        if rotate_left {
-            rotation = Some(
-                rotation.unwrap_or(rotation_identity) * Matrix4::from_angle_y(Rad(-0.1)),
-            );
-        }
-
-        if rotate_right {
-            rotation = Some(
-                rotation.unwrap_or(rotation_identity) * Matrix4::from_angle_y(Rad(0.1)),
-            );
-        }
-
-        if rotate_up {
-            rotation = Some(
-                rotation.unwrap_or(rotation_identity) * Matrix4::from_angle_x(Rad(-0.1)),
-            );
-        }
-
-        if rotate_down {
-            rotation = Some(
-                rotation.unwrap_or(rotation_identity) * Matrix4::from_angle_x(Rad(0.1)),
-            );
-        }
-
-        if roll_left {
-            rotation = Some(
-                rotation.unwrap_or(rotation_identity) * Matrix4::from_angle_z(Rad(-0.1)),
-            );
-        }
-
-        if roll_right {
-            rotation = Some(
-                rotation.unwrap_or(rotation_identity) * Matrix4::from_angle_z(Rad(0.1)),
-            );
-        }
-
-        if let Some(rotation) = rotation {
-            gfx_loop.rotate_camera(&rotation)?;
+        if let Some(movement) = logic.build_movement(&pressed_keys) {
+            gfx_loop.translate_world(&movement)?;
         }
 
         let mut exit = false;
@@ -109,13 +115,11 @@ fn entry() -> Result<()> {
             match ev {
                 Event::WindowEvent { event: WindowEvent::Closed, .. } => exit = true,
                 Event::WindowEvent { event: WindowEvent::Focused(state), .. } => {
-                    println!("focused: {}", state);
                     focused = state;
 
                     // reset fps counter when we wake up
                     if focused {
-                        frames = 0;
-                        start = SystemTime::now();
+                        refocus = true;
                     }
                 }
                 Event::WindowEvent { .. } => {
@@ -138,42 +142,42 @@ fn entry() -> Result<()> {
                             state,
                             ..
                         } => {
-                            rotate_left = state == ElementState::Pressed;
+                            pressed_keys.set(Key::MoveLeft, state == ElementState::Pressed);
                         }
                         KeyboardInput {
                             virtual_keycode: Some(VirtualKeyCode::D),
                             state,
                             ..
                         } => {
-                            rotate_right = state == ElementState::Pressed;
+                            pressed_keys.set(Key::MoveRight, state == ElementState::Pressed);
                         }
                         KeyboardInput {
                             virtual_keycode: Some(VirtualKeyCode::W),
                             state,
                             ..
                         } => {
-                            rotate_up = state == ElementState::Pressed;
+                            pressed_keys.set(Key::MoveUp, state == ElementState::Pressed);
                         }
                         KeyboardInput {
                             virtual_keycode: Some(VirtualKeyCode::S),
                             state,
                             ..
                         } => {
-                            rotate_down = state == ElementState::Pressed;
+                            pressed_keys.set(Key::MoveDown, state == ElementState::Pressed);
                         }
                         KeyboardInput {
                             virtual_keycode: Some(VirtualKeyCode::Q),
                             state,
                             ..
                         } => {
-                            roll_left = state == ElementState::Pressed;
+                            pressed_keys.set(Key::RollLeft, state == ElementState::Pressed);
                         }
                         KeyboardInput {
                             virtual_keycode: Some(VirtualKeyCode::E),
                             state,
                             ..
                         } => {
-                            roll_right = state == ElementState::Pressed;
+                            pressed_keys.set(Key::RollRight, state == ElementState::Pressed);
                         }
                         _ => {
                             // println!("input = {:?}", input);
