@@ -26,6 +26,7 @@ use vulkano_win::{self, VkSurfaceBuild};
 
 use winit;
 
+pub mod errors;
 mod shaders;
 mod vertex;
 

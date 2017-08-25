@@ -1,9 +1,13 @@
+#[cfg(feature = "gfx-vulkan")]
 #[macro_use]
 extern crate vulkano;
 #[macro_use]
+#[cfg(feature = "gfx-vulkan")]
 extern crate vulkano_shader_derive;
-extern crate winit;
+#[cfg(feature = "gfx-vulkan")]
 extern crate vulkano_win;
+
+extern crate winit;
 extern crate cgmath;
 
 pub mod events;

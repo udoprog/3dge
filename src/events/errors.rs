@@ -2,6 +2,9 @@ use gfx::errors as gfx;
 
 #[derive(Debug)]
 pub enum Error {
+    /// No compatible graphics backend available.
+    NoCompatibleGfxBackend,
+    /// Errors raised from graphics backend.
     Gfx(gfx::Error),
 }
 

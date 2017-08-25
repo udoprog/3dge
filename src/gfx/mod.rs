@@ -1,3 +1,4 @@
+#[cfg(feature = "gfx-vulkan")]
 pub(crate) mod vulkan;
 mod window;
 pub mod errors;
