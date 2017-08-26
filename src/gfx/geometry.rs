@@ -1,5 +1,5 @@
 use super::errors::*;
-use cgmath::{Matrix4, SquareMatrix};
+use cgmath::Matrix4;
 
 /// Describes the geomtry of some object on screen.
 ///

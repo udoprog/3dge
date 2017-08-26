@@ -2,7 +2,7 @@ extern crate winit;
 extern crate threedge;
 extern crate cgmath;
 
-use cgmath::{Matrix4, Rad, SquareMatrix, Vector3};
+use cgmath::{Matrix4, Point3, Rad, SquareMatrix, Vector3};
 use cgmath::prelude::*;
 use std::sync::{Arc, RwLock};
 use std::thread;
@@ -13,6 +13,7 @@ use threedge::fps_counter::FpsCounter;
 use threedge::game::Game;
 use threedge::player::Player;
 use threedge::pressed_keys::{Key, PressedKeys};
+use threedge::texture::builtin as builtin_texture;
 
 struct Logic {
     /// Identity matrix. Nothing happens when multipled with it.
@@ -71,7 +72,10 @@ impl Logic {
 
 fn entry() -> Result<()> {
     let mut events = threedge::events::winit::WinitEvents::new()?;
-    let (window, gfx) = events.setup_gfx()?;
+    let (window, mut gfx) = events.setup_gfx()?;
+
+    let mut plane = gfx.new_plane(Point3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 0.0, 1.0));
+    plane.bind_texture(&builtin_texture::debug()?)?;
 
     let mut refocus = false;
     let mut focused = true;
@@ -111,7 +115,8 @@ fn entry() -> Result<()> {
         }
 
         if let Some(movement) = logic.build_movement(&pressed_keys) {
-            player.transform(&movement)?;
+            // player.transform(&movement)?;
+            gfx_loop.translate_world(&movement)?;
         }
 
         let mut exit = false;

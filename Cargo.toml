@@ -12,6 +12,7 @@ winit = "*"
 cgmath = "0.15"
 error-chain = "*"
 bit-vec = "0.4"
+image = "*"
 
 [dependencies.vulkano]
 version = "0.6"
