@@ -15,6 +15,7 @@ pub mod vulkan {
 
 #[derive(Debug)]
 pub enum Error {
+    PoisonError,
     /// Returned if a backend does not support the given shader.
     UnsupportedShader,
     Vulkan(vulkan::ErrorKind),

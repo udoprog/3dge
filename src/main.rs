@@ -2,65 +2,70 @@ extern crate winit;
 extern crate threedge;
 extern crate cgmath;
 
-use cgmath::{Matrix4, Rad, SquareMatrix};
+use cgmath::{Matrix4, Rad, SquareMatrix, Vector3};
+use cgmath::prelude::*;
+use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
-
+use threedge::camera::Camera;
 use threedge::errors::*;
 use threedge::fps_counter::FpsCounter;
+use threedge::game::Game;
+use threedge::player::Player;
 use threedge::pressed_keys::{Key, PressedKeys};
 
 struct Logic {
     /// Identity matrix. Nothing happens when multipled with it.
-    identity: Matrix4<f32>,
+    no_transform: Matrix4<f32>,
+    no_movement: Vector3<f32>,
 }
 
 impl Logic {
     pub fn new() -> Logic {
-        Logic { identity: <Matrix4<f32> as SquareMatrix>::identity() }
+        Logic {
+            no_transform: <Matrix4<f32> as SquareMatrix>::identity(),
+            no_movement: Vector3::zero(),
+        }
     }
 
     /// Build movement for a given frame.
     fn build_movement(&self, keys: &PressedKeys) -> Option<Matrix4<f32>> {
-        let mut movement = None;
+        let mut translation = None;
 
         if keys.test(Key::MoveLeft) {
-            movement = Some(
-                movement.unwrap_or(self.identity) * Matrix4::from_angle_y(Rad(-0.1)),
+            translation = Some(
+                translation.unwrap_or(self.no_movement) + Vector3::new(-0.1, 0.0, 0.0),
             );
         }
 
         if keys.test(Key::MoveRight) {
-            movement = Some(
-                movement.unwrap_or(self.identity) * Matrix4::from_angle_y(Rad(0.1)),
+            translation = Some(
+                translation.unwrap_or(self.no_movement) + Vector3::new(0.1, 0.0, 0.0),
             );
         }
 
         if keys.test(Key::MoveUp) {
-            movement = Some(
-                movement.unwrap_or(self.identity) * Matrix4::from_angle_x(Rad(-0.1)),
+            translation = Some(
+                translation.unwrap_or(self.no_movement) + Vector3::new(0.0, -0.1, 0.0),
             );
         }
 
         if keys.test(Key::MoveDown) {
-            movement = Some(
-                movement.unwrap_or(self.identity) * Matrix4::from_angle_x(Rad(0.1)),
+            translation = Some(
+                translation.unwrap_or(self.no_movement) + Vector3::new(0.0, 0.1, 0.0),
             );
         }
 
-        if keys.test(Key::RollLeft) {
-            movement = Some(
-                movement.unwrap_or(self.identity) * Matrix4::from_angle_z(Rad(-0.1)),
-            );
+        let mut transform = None;
+
+        if let Some(translation) = translation {
+            transform = Some(
+                transform.unwrap_or(self.no_transform) *
+                    Matrix4::from_translation(translation),
+            )
         }
 
-        if keys.test(Key::RollRight) {
-            movement = Some(
-                movement.unwrap_or(self.identity) * Matrix4::from_angle_z(Rad(0.1)),
-            );
-        }
-
-        movement
+        transform
     }
 }
 
@@ -69,7 +74,6 @@ fn entry() -> Result<()> {
     let (window, gfx) = events.setup_gfx()?;
 
     let mut refocus = false;
-    let mut gfx_loop = gfx.new_loop(&window)?;
     let mut focused = true;
     let mut pressed_keys = PressedKeys::new();
     let ten_ms = Duration::from_millis(10);
@@ -79,6 +83,14 @@ fn entry() -> Result<()> {
         println!("fps = {}", fps);
         Ok(())
     });
+
+    let mut player = Player::new();
+    let camera = Camera::new(&player);
+    let mut game = Game::new(&camera);
+    game.register_geometry(&player);
+
+    let mut gfx_loop = gfx.new_loop(&window)?;
+    let mut player = Player::new();
 
     let target_frame_length = Duration::from_millis(1000 / 60);
 
@@ -99,7 +111,7 @@ fn entry() -> Result<()> {
         }
 
         if let Some(movement) = logic.build_movement(&pressed_keys) {
-            gfx_loop.translate_world(&movement)?;
+            player.transform(&movement)?;
         }
 
         let mut exit = false;

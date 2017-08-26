@@ -21,3 +21,6 @@ pub mod gfx;
 pub mod sg;
 pub mod pressed_keys;
 pub mod fps_counter;
+pub mod game;
+pub mod player;
+pub mod camera;

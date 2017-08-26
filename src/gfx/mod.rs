@@ -2,6 +2,7 @@
 pub(crate) mod vulkan;
 mod window;
 pub mod errors;
+pub mod geometry;
 
 use self::errors::*;
 pub use self::window::Window;
