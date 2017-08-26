@@ -2,7 +2,7 @@ extern crate winit;
 extern crate threedge;
 extern crate cgmath;
 
-use cgmath::{Matrix4, Point3, Rad, SquareMatrix, Vector3};
+use cgmath::{Matrix4, Point3, SquareMatrix, Vector3};
 use cgmath::prelude::*;
 use std::sync::{Arc, RwLock};
 use std::thread;
@@ -11,6 +11,8 @@ use threedge::camera::Camera;
 use threedge::errors::*;
 use threedge::fps_counter::FpsCounter;
 use threedge::game::Game;
+use threedge::gfx::color::Color;
+use threedge::gfx::rectangle::Rectangle;
 use threedge::player::Player;
 use threedge::pressed_keys::{Key, PressedKeys};
 use threedge::texture::builtin as builtin_texture;
@@ -35,25 +37,25 @@ impl Logic {
 
         if keys.test(Key::MoveLeft) {
             translation = Some(
-                translation.unwrap_or(self.no_movement) + Vector3::new(-0.1, 0.0, 0.0),
+                translation.unwrap_or(self.no_movement) + Vector3::new(-0.02, 0.0, 0.0),
             );
         }
 
         if keys.test(Key::MoveRight) {
             translation = Some(
-                translation.unwrap_or(self.no_movement) + Vector3::new(0.1, 0.0, 0.0),
+                translation.unwrap_or(self.no_movement) + Vector3::new(0.02, 0.0, 0.0),
             );
         }
 
         if keys.test(Key::MoveUp) {
             translation = Some(
-                translation.unwrap_or(self.no_movement) + Vector3::new(0.0, -0.1, 0.0),
+                translation.unwrap_or(self.no_movement) + Vector3::new(0.0, -0.02, 0.0),
             );
         }
 
         if keys.test(Key::MoveDown) {
             translation = Some(
-                translation.unwrap_or(self.no_movement) + Vector3::new(0.0, 0.1, 0.0),
+                translation.unwrap_or(self.no_movement) + Vector3::new(0.0, 0.02, 0.0),
             );
         }
 
@@ -74,6 +76,22 @@ fn entry() -> Result<()> {
     let mut events = threedge::events::winit::WinitEvents::new()?;
     let (window, mut gfx) = events.setup_gfx()?;
 
+    let mut player = Player::new();
+    let camera = Arc::new(RwLock::new(Camera::new(&player)));
+    let gfx_loop = gfx.new_loop(Box::new(camera.clone()), &window)?;
+    let mut game = Game::new(camera.clone(), gfx_loop);
+
+    let color1 = Color::from_rgb(0.0, 0.0, 1.0);
+
+    let rectangle1 = Rectangle::new(
+        Point3::new(0.0, 0.0, 0.0),
+        Vector3::new(0.0, 0.0, -1.0),
+        color1,
+    );
+
+    game.register_geometry(&rectangle1);
+    game.register_geometry(&player);
+
     let mut plane = gfx.new_plane(Point3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 0.0, 1.0));
     plane.bind_texture(&builtin_texture::debug()?)?;
 
@@ -88,15 +106,7 @@ fn entry() -> Result<()> {
         Ok(())
     });
 
-    let mut player = Player::new();
-    let camera = Camera::new(&player);
-    let mut game = Game::new(&camera);
-    game.register_geometry(&player);
-
-    let mut gfx_loop = gfx.new_loop(&window)?;
-    let mut player = Player::new();
-
-    let target_frame_length = Duration::from_millis(1000 / 60);
+    let _target_frame_length = Duration::from_millis(1000 / 60);
 
     // TODO: abstract away loop into fully event-based engine.
     'main: loop {
@@ -107,7 +117,7 @@ fn entry() -> Result<()> {
 
         // only render if focused
         if focused {
-            gfx_loop.tick()?;
+            game.tick()?;
             fps_counter.tick()?;
         } else {
             // avoid freewheeling
@@ -115,8 +125,8 @@ fn entry() -> Result<()> {
         }
 
         if let Some(movement) = logic.build_movement(&pressed_keys) {
-            // player.transform(&movement)?;
-            gfx_loop.translate_world(&movement)?;
+            player.transform(&movement)?;
+            // gfx_loop.translate_world(&movement)?;
         }
 
         let mut exit = false;

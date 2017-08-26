@@ -69,6 +69,7 @@ vulkan_error!{
     swapchain => Swapchain {
         SwapchainCreationError;
         CapabilitiesError;
+        AcquireError;
     }
 }
 

@@ -1,11 +1,8 @@
-use super::UniformData;
 use super::errors::*;
 use super::vulkan_gfx::VulkanGfx;
 use super::vulkan_window::VulkanWindow;
 use super::vulkano_win_window::VulkanoWinWindow;
-use cgmath::{Matrix4, Point3, Rad, SquareMatrix, Vector3};
 use gfx::window::Window;
-use std::f32;
 use std::sync::Arc;
 use vulkano::device::{self, Device};
 use vulkano::instance::{self, Instance};
@@ -95,30 +92,6 @@ impl VulkanGfxInstance {
             )?
         };
 
-        let proj = ::cgmath::perspective(
-            Rad(f32::consts::FRAC_PI_2),
-            {
-                let d = images[0].dimensions();
-                d[0] as f32 / d[1] as f32
-            },
-            0.01,
-            100.0,
-        );
-
-        let view = Matrix4::look_at(
-            Point3::new(0.3, 0.3, 1.0),
-            Point3::new(0.0, 0.0, 0.0),
-            Vector3::new(0.0, 1.0, 0.0),
-        );
-
-        let scale = Matrix4::from_scale(0.5);
-
-        let uniform = UniformData {
-            world: <Matrix4<f32> as SquareMatrix>::identity().into(),
-            view: (view * scale).into(),
-            proj: proj.into(),
-        };
-
-        Ok(VulkanGfx::new(device, swapchain, images, queue, uniform))
+        Ok(VulkanGfx::new(device, swapchain, images, queue))
     }
 }

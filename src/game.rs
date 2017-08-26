@@ -1,26 +1,28 @@
 use super::camera::Camera;
-use gfx::geometry::Geometry;
+use super::errors::*;
+use gfx::GfxLoop;
+use gfx::geometry::{Geometry, GeometryObject};
+use std::sync::{Arc, RwLock};
 
-pub struct Game<'a> {
-    geometry: Vec<Box<Geometry>>,
-    camera: &'a Camera<'a>,
+pub struct Game {
+    camera: Arc<RwLock<Camera>>,
+    gfx_loop: Box<GfxLoop>,
 }
 
-impl<'a> Game<'a> {
-    pub fn new(camera: &'a Camera<'a>) -> Game<'a> {
+impl Game {
+    pub fn new(camera: Arc<RwLock<Camera>>, gfx_loop: Box<GfxLoop>) -> Game {
         Game {
-            geometry: Vec::new(),
             camera: camera,
+            gfx_loop: gfx_loop,
         }
     }
 
     pub fn register_geometry(&mut self, geometry_object: &GeometryObject) {
-        self.geometry.push(geometry_object.geometry());
+        self.gfx_loop.register_geometry(geometry_object);
     }
-}
 
-pub trait GeometryObject {
-    /// Get geometry associated with the game object.
-    /// Geometry determines it's location in the world, rotation, and scale.
-    fn geometry(&self) -> Box<Geometry>;
+    pub fn tick(&mut self) -> Result<()> {
+        self.gfx_loop.tick()?;
+        Ok(())
+    }
 }

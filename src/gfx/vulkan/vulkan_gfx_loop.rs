@@ -1,14 +1,18 @@
-use super::{Ds, Fb, Pl, Rp, UniformData};
+use super::{Fb, Pl, Rp, UniformGlobal, UniformModel};
 use super::errors::*;
-use super::vertex::Vertex;
-use cgmath::Matrix4;
+use cgmath::{Matrix4, Rad};
+use cgmath::prelude::*;
 use gfx::GfxLoop;
+use gfx::camera_geometry::CameraGeometry;
+use gfx::geometry::{Geometry, GeometryObject};
 use gfx::window::Window;
 use std::f32;
+use std::marker;
 use std::mem;
 use std::sync::Arc;
-use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
+use vulkano::buffer::{BufferAccess, BufferUsage, CpuAccessibleBuffer};
 use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBuffer, DynamicState};
+use vulkano::descriptor::descriptor_set::DescriptorSet;
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 use vulkano::device::{Device, Queue};
 use vulkano::framebuffer::{Framebuffer, FramebufferBuilder};
@@ -17,7 +21,11 @@ use vulkano::pipeline::viewport::Viewport;
 use vulkano::swapchain::{self, AcquireError, Swapchain};
 use vulkano::sync::GpuFuture;
 
+pub type SyncDescriptorSet = DescriptorSet + Send + ::std::marker::Sync;
+type SyncBufferAccess = BufferAccess + marker::Sync + marker::Send;
+
 pub struct VulkanGfxLoop {
+    camera: Box<CameraGeometry>,
     device: Arc<Device>,
     swapchain: Arc<Swapchain>,
     images: Vec<Arc<SwapchainImage>>,
@@ -26,16 +34,15 @@ pub struct VulkanGfxLoop {
     dimensions: [u32; 2],
     recreate_swapchain: bool,
     previous_frame_end: Option<Box<GpuFuture>>,
-    uniform: UniformData,
-    uniform_buffer_set: Arc<Ds>,
-    vertex_buffer: Arc<CpuAccessibleBuffer<[Vertex]>>,
     framebuffers: Option<Vec<Arc<Fb>>>,
     render_pass: Arc<Rp>,
     pipeline: Arc<Pl>,
+    geometry: Vec<Box<Geometry>>,
 }
 
 impl VulkanGfxLoop {
     pub fn new(
+        camera: Box<CameraGeometry>,
         device: Arc<Device>,
         swapchain: Arc<Swapchain>,
         images: Vec<Arc<SwapchainImage>>,
@@ -44,14 +51,12 @@ impl VulkanGfxLoop {
         dimensions: [u32; 2],
         recreate_swapchain: bool,
         previous_frame_end: Option<Box<GpuFuture>>,
-        uniform: UniformData,
-        uniform_buffer_set: Arc<Ds>,
-        vertex_buffer: Arc<CpuAccessibleBuffer<[Vertex]>>,
         framebuffers: Option<Vec<Arc<Fb>>>,
         render_pass: Arc<Rp>,
         pipeline: Arc<Pl>,
     ) -> VulkanGfxLoop {
         VulkanGfxLoop {
+            camera: camera,
             device: device,
             swapchain: swapchain,
             images: images,
@@ -60,23 +65,90 @@ impl VulkanGfxLoop {
             dimensions: dimensions,
             recreate_swapchain: recreate_swapchain,
             previous_frame_end: previous_frame_end,
-            uniform: uniform,
-            uniform_buffer_set: uniform_buffer_set,
-            vertex_buffer: vertex_buffer,
             framebuffers: framebuffers,
             render_pass: render_pass,
             pipeline: pipeline,
+            geometry: Vec::new(),
         }
+    }
+
+    fn create_global(&self) -> Result<Arc<SyncDescriptorSet>> {
+        let projection = ::cgmath::perspective(
+            Rad(f32::consts::FRAC_PI_2),
+            {
+                let d = self.dimensions;
+                d[0] as f32 / d[1] as f32
+            },
+            0.01,
+            100.0,
+        );
+
+        let view = self.camera.view_transformation()?;
+
+        let scale = Matrix4::from_scale(1.0);
+
+        let uniform = UniformGlobal {
+            camera: <Matrix4<f32> as SquareMatrix>::identity().into(),
+            view: (view * scale).into(),
+            projection: projection.into(),
+        };
+
+        let uniform_buffer = CpuAccessibleBuffer::<UniformGlobal>::from_data(
+            self.device.clone(),
+            BufferUsage::all(),
+            uniform,
+        )?;
+
+        let uniform_buffer_set = Arc::new(PersistentDescriptorSet::start(self.pipeline.clone(), 0)
+            .add_buffer(uniform_buffer.clone())?
+            .build()?);
+
+        Ok(Arc::new(uniform_buffer_set))
+    }
+
+    fn create_geometry(&self) -> Result<Vec<(Arc<SyncBufferAccess>, Arc<SyncDescriptorSet>)>> {
+        let mut out: Vec<(Arc<SyncBufferAccess>, Arc<SyncDescriptorSet>)> = Vec::new();
+
+        for g in &self.geometry {
+            let buffer = CpuAccessibleBuffer::from_iter(
+                self.device.clone(),
+                BufferUsage::all(),
+                g.vertices()?.iter().cloned(),
+            )?;
+
+            let transformation = g.transformation()?;
+
+            let model = UniformModel { model: transformation.into() };
+
+            let uniform_buffer = CpuAccessibleBuffer::<UniformModel>::from_data(
+                self.device.clone(),
+                BufferUsage::all(),
+                model,
+            )?;
+
+            let ds = Arc::new(PersistentDescriptorSet::start(self.pipeline.clone(), 0)
+                .add_buffer(uniform_buffer.clone())?
+                .build()?);
+
+            out.push((buffer, ds));
+        }
+
+        Ok(out)
     }
 }
 
 impl GfxLoop for VulkanGfxLoop {
+    fn register_geometry(&mut self, geometry_object: &GeometryObject) {
+        self.geometry.push(geometry_object.geometry());
+    }
+
     fn tick(&mut self) -> Result<()> {
         if let Some(ref mut previous_frame_end) = self.previous_frame_end {
             previous_frame_end.cleanup_finished();
         }
 
         if self.recreate_swapchain {
+            println!("re-creating swapchain");
             self.dimensions = self.window.dimensions()?;
 
             let (new_swapchain, new_images) =
@@ -121,32 +193,40 @@ impl GfxLoop for VulkanGfxLoop {
                     self.recreate_swapchain = true;
                     return Ok(());
                 }
-                Err(err) => panic!("{:?}", err),
+                Err(err) => {
+                    return Err(err.into());
+                }
             };
 
         /// Fill up with draw-calls.
-        let cb = AutoCommandBufferBuilder::primary_one_time_submit(
+        let mut cb = AutoCommandBufferBuilder::primary_one_time_submit(
             self.device.clone(),
             self.queue.family(),
         )?;
 
-        let cb = cb.begin_render_pass(
+        cb = cb.begin_render_pass(
             self.framebuffers.as_ref().unwrap()[image_num].clone(),
             false,
             vec![[0.0, 0.0, 0.0, 1.0].into()],
         )?;
 
-        let cb = cb.draw(self.pipeline.clone(),
-                  DynamicState {
-                      line_width: None,
-                      viewports: Some(vec![Viewport {
-                          origin: [0.0, 0.0],
-                          dimensions: [self.dimensions[0] as f32, self.dimensions[1] as f32],
-                          depth_range: 0.0 .. 1.0,
-                      }]),
-                      scissors: None,
-                  },
-                  vec![self.vertex_buffer.clone()], (self.uniform_buffer_set.clone()), ())?;
+        let uniform_buffer_set = self.create_global()?;
+
+        let geometry = self.create_geometry()?;
+
+        for (buffer, position) in geometry {
+            cb = cb.draw(self.pipeline.clone(),
+            DynamicState {
+                line_width: None,
+                viewports: Some(vec![Viewport {
+                    origin: [0.0, 0.0],
+                    dimensions: [self.dimensions[0] as f32, self.dimensions[1] as f32],
+                    depth_range: 0.0 .. 1.0,
+                }]),
+                scissors: None,
+            },
+            vec![buffer], (uniform_buffer_set.clone(), position), ())?;
+        }
 
         let cb = cb.end_render_pass()?;
         let cb = cb.build()?;
@@ -165,24 +245,6 @@ impl GfxLoop for VulkanGfxLoop {
         };
 
         self.previous_frame_end = Some(future);
-        Ok(())
-    }
-
-    fn translate_world(&mut self, translation: &Matrix4<f32>) -> Result<()> {
-        let world: Matrix4<f32> = self.uniform.world.into();
-        self.uniform.world = (translation * world).into();
-
-        let uniform_buffer = CpuAccessibleBuffer::<UniformData>::from_data(
-            self.device.clone(),
-            BufferUsage::all(),
-            self.uniform.clone(),
-        )?;
-
-        self.uniform_buffer_set =
-            Arc::new(PersistentDescriptorSet::start(self.pipeline.clone(), 0)
-                .add_buffer(uniform_buffer.clone())?
-                .build()?);
-
         Ok(())
     }
 }

@@ -10,14 +10,18 @@ layout(location = 0) in vec2 position;
 layout(location = 1) in vec3 color;
 layout(location = 0) out vec3 fragColor;
 
-layout(set = 0, binding = 0) uniform Data {
-    mat4 world;
+layout(set = 0, binding = 0) uniform Global {
     mat4 view;
-    mat4 proj;
-} uniforms;
+    mat4 projection;
+    mat4 camera;
+} global;
+
+layout(set = 1, binding = 0) uniform Model {
+    mat4 model;
+} model;
 
 void main() {
-    gl_Position = uniforms.proj * uniforms.view * uniforms.world * vec4(position, 0.0, 1.0);
+    gl_Position = global.projection * global.view * global.camera * model.model * vec4(position, 0.0, 1.0);
     fragColor = color;
 }
 "]
@@ -33,10 +37,10 @@ pub(crate) mod fs {
 #version 450
 
 layout(location = 0) in vec3 fragColor;
-layout(location = 0) out vec4 f_color;
+layout(location = 0) out vec4 outColor;
 
 void main() {
-    f_color = vec4(fragColor, 1.0);
+    outColor = vec4(fragColor, 1.0);
 }
 "]
     struct Dummy;

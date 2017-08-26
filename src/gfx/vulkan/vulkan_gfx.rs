@@ -1,17 +1,14 @@
-use super::UniformData;
 use super::errors::*;
 use super::shaders::basic::{fs, vs};
-use super::vertex::Vertex;
 use super::vulkan_gfx_loop::VulkanGfxLoop;
 use super::vulkan_plane::VulkanPlane;
 use cgmath::{Point3, Vector3};
-use gfx::{Gfx, GfxLoop};
+use gfx::{Gfx, GfxLoop, Vertex};
+use gfx::camera_geometry::CameraGeometry;
 use gfx::plane::Plane;
 use gfx::window::Window;
 use std::f32;
 use std::sync::Arc;
-use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
-use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 use vulkano::device::{Device, Queue};
 use vulkano::framebuffer::Subpass;
 use vulkano::image::SwapchainImage;
@@ -24,7 +21,6 @@ pub struct VulkanGfx {
     swapchain: Arc<Swapchain>,
     images: Vec<Arc<SwapchainImage>>,
     queue: Arc<Queue>,
-    uniform: UniformData,
 }
 
 impl VulkanGfx {
@@ -33,14 +29,12 @@ impl VulkanGfx {
         swapchain: Arc<Swapchain>,
         images: Vec<Arc<SwapchainImage>>,
         queue: Arc<Queue>,
-        uniform: UniformData,
     ) -> VulkanGfx {
         VulkanGfx {
             device: device,
             swapchain: swapchain,
             images: images,
             queue: queue,
-            uniform: uniform,
         }
     }
 }
@@ -50,7 +44,11 @@ impl Gfx for VulkanGfx {
         Box::new(VulkanPlane::new())
     }
 
-    fn new_loop(&self, window: &Arc<Box<Window>>) -> Result<Box<GfxLoop>> {
+    fn new_loop(
+        &self,
+        camera: Box<CameraGeometry>,
+        window: &Arc<Box<Window>>,
+    ) -> Result<Box<GfxLoop>> {
         let vs = vs::Shader::load(self.device.clone())?;
         let fs = fs::Shader::load(self.device.clone())?;
 
@@ -85,37 +83,8 @@ impl Gfx for VulkanGfx {
             .render_pass(sub_pass)
             .build(self.device.clone())?);
 
-        let uniform_buffer = CpuAccessibleBuffer::<UniformData>::from_data(
-            self.device.clone(),
-            BufferUsage::all(),
-            self.uniform.clone(),
-        )?;
-
-        let uniform_buffer_set = Arc::new(PersistentDescriptorSet::start(pipeline.clone(), 0)
-            .add_buffer(uniform_buffer.clone())?
-            .build()?);
-
-        /// FIXME: hardcoded triangle, vertex buffers and textures through API.
-        let v1 = Vertex {
-            position: [-0.5, -0.5],
-            color: [1.0, 1.0, 1.0],
-        };
-        let v2 = Vertex {
-            position: [0.0, 0.5],
-            color: [0.5, 1.0, 0.0],
-        };
-        let v3 = Vertex {
-            position: [0.5, -0.25],
-            color: [0.0, 0.0, 1.0],
-        };
-
-        let vertex_buffer = CpuAccessibleBuffer::from_iter(
-            self.device.clone(),
-            BufferUsage::all(),
-            vec![v1, v2, v3].iter().cloned(),
-        )?;
-
         let gfx_loop = VulkanGfxLoop::new(
+            camera,
             self.device.clone(),
             self.swapchain.clone(),
             self.images.clone(),
@@ -124,9 +93,6 @@ impl Gfx for VulkanGfx {
             window.dimensions()?,
             false,
             Some(Box::new(now(self.device.clone()))),
-            self.uniform.clone(),
-            uniform_buffer_set,
-            vertex_buffer,
             None,
             render_pass,
             pipeline,
