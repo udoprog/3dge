@@ -8,6 +8,7 @@ use std::sync::{Arc, RwLock};
 pub struct Camera {
     player: Box<Geometry>,
     location: Point3<f32>,
+    zoom: f32,
 }
 
 impl Camera {
@@ -15,7 +16,13 @@ impl Camera {
         Camera {
             player: player.geometry(),
             location: Point3::new(0.0, 1.0, 1.0),
+            zoom: 0.0,
         }
+    }
+
+    pub fn modify_zoom(&mut self, zoom: f32) {
+        let new_zoom = self.zoom + zoom;
+        self.zoom = f32::min(0.9, f32::max(0.0, new_zoom));
     }
 }
 
@@ -30,7 +37,10 @@ impl CameraGeometry for Arc<RwLock<Camera>> {
         location.x = f32::min(player_pos.x + 0.2, location.x);
         location.x = f32::max(player_pos.x - 0.2, location.x);
 
-        location.y = player_pos.y + 1.0;
+        let inverse_zoom = 1.0 - camera.zoom;
+
+        location.y = player_pos.y + 5.0 * inverse_zoom;
+        location.z = 5.0 * inverse_zoom;
 
         camera.location = location;
 

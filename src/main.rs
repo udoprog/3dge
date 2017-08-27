@@ -7,7 +7,6 @@ use cgmath::{Matrix4, Point3, SquareMatrix, Vector3};
 use cgmath::prelude::*;
 
 use std::sync::{Arc, RwLock};
-use std::thread;
 use std::time::Duration;
 use threedge::camera::Camera;
 use threedge::errors::*;
@@ -83,7 +82,7 @@ fn entry() -> Result<()> {
     let color1 = Color::from_rgb(0.0, 0.0, 1.0);
 
     let rectangle1 = Rectangle::new(
-        Point3::new(0.0, 0.0, 0.0),
+        Point3::new(0.0, 0.0, 0.2),
         Vector3::new(0.0, 0.0, -1.0),
         color1,
     );
@@ -97,6 +96,8 @@ fn entry() -> Result<()> {
     let mut focus_update = None;
     let mut focused = true;
     let mut pressed_keys = PressedKeys::new();
+    let mut scroll_amount = 0i32;
+
     let ten_ms = Duration::from_millis(10);
     let logic = Logic::new();
 
@@ -116,6 +117,13 @@ fn entry() -> Result<()> {
 
         if let Some(transform) = logic.player_transform(&pressed_keys) {
             player.transform(&transform)?;
+        }
+
+        if scroll_amount != 0 {
+            let mut camera = camera.write().map_err(|_| ErrorKind::PoisonError)?;
+            let amount = (-scroll_amount as f32) * 0.005;
+            camera.modify_zoom(amount);
+            scroll_amount = 0i32;
         }
 
         let mut exit = false;
@@ -194,6 +202,11 @@ fn entry() -> Result<()> {
                             // println!("input = {:?}", input);
                         }
                     }
+                }
+                Event::DeviceEvent {
+                    event: DeviceEvent::Motion { axis: 3, value, .. }, ..
+                } => {
+                    scroll_amount += value as i32;
                 }
                 Event::DeviceEvent { .. } => {
                     // ignore other device events
