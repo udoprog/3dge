@@ -1,6 +1,6 @@
 use super::Events;
 use super::errors::*;
-use gfx;
+use gfx::Gfx;
 use std::sync::Arc;
 use winit;
 
@@ -18,14 +18,17 @@ impl WinitEvents {
     ///
     /// This is here, since the gfx and window bindings need access to the event loop.
     /// Possibly solve with some kind of DI?
-    pub fn setup_gfx(&self) -> Result<(Arc<Box<gfx::Window>>, Box<gfx::Gfx>)> {
+    pub fn setup_gfx(&self) -> Result<Box<Gfx>> {
         #[cfg(feature = "gfx-vulkan")]
         {
-            let instance = gfx::vulkan::VulkanGfxInstance::new()?;
-            let window = instance.build_window(&self.events_loop)?;
-            let gfx = instance.build_gfx(&window)?;
+            use gfx::vulkan;
 
-            return Ok((Arc::new(Box::new(window)), Box::new(gfx)));
+            let instance = vulkan::VulkanGfxInstance::new()?;
+            let window = Arc::new(Box::new(instance.build_window(&self.events_loop)?) as
+                Box<vulkan::vulkan_window::VulkanWindow>);
+            let gfx = instance.build_gfx(window)?;
+
+            return Ok(Box::new(gfx));
         }
 
         // statement is only run if no other backends are compiled in.

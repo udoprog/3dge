@@ -2,7 +2,6 @@ use super::errors::*;
 use super::vulkan_gfx::VulkanGfx;
 use super::vulkan_window::VulkanWindow;
 use super::vulkano_win_window::VulkanoWinWindow;
-use gfx::window::Window;
 use std::sync::Arc;
 use vulkano::device::{self, Device};
 use vulkano::instance::{self, Instance};
@@ -33,10 +32,7 @@ impl VulkanGfxInstance {
         Ok(VulkanoWinWindow::new(window))
     }
 
-    pub(crate) fn build_gfx<W>(&self, window: &W) -> Result<VulkanGfx>
-    where
-        W: Window + VulkanWindow,
-    {
+    pub(crate) fn build_gfx(&self, window: Arc<Box<VulkanWindow>>) -> Result<VulkanGfx> {
         let physical = instance::PhysicalDevice::enumerate(&self.instance)
             .next()
             .ok_or(ErrorKind::NoSupportedDevice)?;
@@ -92,6 +88,6 @@ impl VulkanGfxInstance {
             )?
         };
 
-        Ok(VulkanGfx::new(device, swapchain, images, queue))
+        Ok(VulkanGfx::new(device, window, swapchain, images, queue))
     }
 }

@@ -1,18 +1,19 @@
 extern crate winit;
 extern crate threedge;
 extern crate cgmath;
+extern crate shuteye;
 
 use cgmath::{Matrix4, Point3, SquareMatrix, Vector3};
 use cgmath::prelude::*;
+
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
 use threedge::camera::Camera;
 use threedge::errors::*;
-use threedge::fps_counter::FpsCounter;
-use threedge::game::Game;
 use threedge::gfx::color::Color;
 use threedge::gfx::rectangle::Rectangle;
+use threedge::gfx_thread::GfxThread;
 use threedge::player::Player;
 use threedge::pressed_keys::{Key, PressedKeys};
 use threedge::texture::builtin as builtin_texture;
@@ -31,8 +32,8 @@ impl Logic {
         }
     }
 
-    /// Build movement for a given frame.
-    fn build_movement(&self, keys: &PressedKeys) -> Option<Matrix4<f32>> {
+    /// Build player transform for a given frame.
+    fn player_transform(&self, keys: &PressedKeys) -> Option<Matrix4<f32>> {
         let mut translation = None;
 
         if keys.test(Key::MoveLeft) {
@@ -73,13 +74,11 @@ impl Logic {
 }
 
 fn entry() -> Result<()> {
-    let mut events = threedge::events::winit::WinitEvents::new()?;
-    let (window, mut gfx) = events.setup_gfx()?;
-
     let mut player = Player::new();
     let camera = Arc::new(RwLock::new(Camera::new(&player)));
-    let gfx_loop = gfx.new_loop(Box::new(camera.clone()), &window)?;
-    let mut game = Game::new(camera.clone(), gfx_loop);
+
+    let mut events = threedge::events::winit::WinitEvents::new()?;
+    let mut gfx = events.setup_gfx()?;
 
     let color1 = Color::from_rgb(0.0, 0.0, 1.0);
 
@@ -89,44 +88,34 @@ fn entry() -> Result<()> {
         color1,
     );
 
-    game.register_geometry(&rectangle1);
-    game.register_geometry(&player);
+    gfx.register_geometry(&rectangle1)?;
+    gfx.register_geometry(&player)?;
 
     let mut plane = gfx.new_plane(Point3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 0.0, 1.0));
     plane.bind_texture(&builtin_texture::debug()?)?;
 
-    let mut refocus = false;
+    let mut focus_update = None;
     let mut focused = true;
     let mut pressed_keys = PressedKeys::new();
     let ten_ms = Duration::from_millis(10);
     let logic = Logic::new();
 
-    let mut fps_counter = FpsCounter::new(|fps| {
-        println!("fps = {}", fps);
-        Ok(())
-    });
-
     let _target_frame_length = Duration::from_millis(1000 / 60);
+
+    let mut gfx_thread = GfxThread::new(gfx.clone());
+    gfx_thread.start(Box::new(camera.clone()));
 
     // TODO: abstract away loop into fully event-based engine.
     'main: loop {
-        if refocus {
-            fps_counter.reset()?;
-            refocus = false;
+        shuteye::sleep(ten_ms);
+
+        if let Some(state) = focus_update.take() {
+            gfx_thread.enabled(state)?;
+            focused = state;
         }
 
-        // only render if focused
-        if focused {
-            game.tick()?;
-            fps_counter.tick()?;
-        } else {
-            // avoid freewheeling
-            thread::sleep(ten_ms);
-        }
-
-        if let Some(movement) = logic.build_movement(&pressed_keys) {
-            player.transform(&movement)?;
-            // gfx_loop.translate_world(&movement)?;
+        if let Some(transform) = logic.player_transform(&pressed_keys) {
+            player.transform(&transform)?;
         }
 
         let mut exit = false;
@@ -142,12 +131,7 @@ fn entry() -> Result<()> {
             match ev {
                 Event::WindowEvent { event: WindowEvent::Closed, .. } => exit = true,
                 Event::WindowEvent { event: WindowEvent::Focused(state), .. } => {
-                    focused = state;
-
-                    // reset fps counter when we wake up
-                    if focused {
-                        refocus = true;
-                    }
+                    focus_update = Some(state);
                 }
                 Event::WindowEvent { .. } => {
                     // ignore other window events
@@ -225,6 +209,7 @@ fn entry() -> Result<()> {
         }
     }
 
+    gfx_thread.stop()?;
     Ok(())
 }
 

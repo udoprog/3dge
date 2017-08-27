@@ -14,7 +14,7 @@ use self::geometry::GeometryObject;
 use self::plane::Plane;
 pub use self::window::Window;
 use cgmath::{Point3, Vector3};
-use std::sync::Arc;
+use std::marker;
 
 #[derive(Debug, Clone)]
 pub struct Vertex {
@@ -22,20 +22,27 @@ pub struct Vertex {
     pub color: [f32; 3],
 }
 
-pub trait Gfx {
+pub trait Gfx: marker::Sync + marker::Send {
     /// Create a new infinite plane, with it's normal defined according to the given `up`.
     fn new_plane(&mut self, origin: Point3<f32>, up: Vector3<f32>) -> Box<Plane>;
 
-    fn new_loop(
-        &self,
-        camera: Box<CameraGeometry>,
-        window: &Arc<Box<Window>>,
-    ) -> Result<Box<GfxLoop>>;
+    /// Register a new piece of geometry that should be rendered.
+    fn register_geometry(&mut self, geometry_object: &GeometryObject) -> Result<()>;
+
+    /// Create a new loop.
+    fn new_loop(&self, camera: Box<CameraGeometry>) -> Result<Box<GfxLoop>>;
+
+    /// Clone the current gfx handle.
+    fn clone_boxed(&self) -> Box<Gfx>;
+}
+
+impl Clone for Box<Gfx> {
+    fn clone(&self) -> Self {
+        self.clone_boxed()
+    }
 }
 
 pub trait GfxLoop {
-    fn register_geometry(&mut self, geometry_object: &GeometryObject);
-
     fn tick(&mut self) -> Result<()>;
 }
 

@@ -1,15 +1,16 @@
 use super::{Fb, Pl, Rp, UniformGlobal, UniformModel};
 use super::errors::*;
+use super::geometry_data::GeometryData;
+use super::vulkan_window::VulkanWindow;
 use cgmath::{Matrix4, Rad};
 use cgmath::prelude::*;
 use gfx::GfxLoop;
 use gfx::camera_geometry::CameraGeometry;
-use gfx::geometry::{Geometry, GeometryObject};
-use gfx::window::Window;
+use gfx::errors as gfx;
 use std::f32;
 use std::marker;
 use std::mem;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use vulkano::buffer::{BufferAccess, BufferUsage, CpuAccessibleBuffer};
 use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBuffer, DynamicState};
 use vulkano::descriptor::descriptor_set::DescriptorSet;
@@ -30,14 +31,14 @@ pub struct VulkanGfxLoop {
     swapchain: Arc<Swapchain>,
     images: Vec<Arc<SwapchainImage>>,
     queue: Arc<Queue>,
-    window: Arc<Box<Window>>,
+    window: Arc<Box<VulkanWindow>>,
     dimensions: [u32; 2],
     recreate_swapchain: bool,
     previous_frame_end: Option<Box<GpuFuture>>,
     framebuffers: Option<Vec<Arc<Fb>>>,
     render_pass: Arc<Rp>,
     pipeline: Arc<Pl>,
-    geometry: Vec<Box<Geometry>>,
+    geometry: Arc<RwLock<GeometryData>>,
 }
 
 impl VulkanGfxLoop {
@@ -47,13 +48,14 @@ impl VulkanGfxLoop {
         swapchain: Arc<Swapchain>,
         images: Vec<Arc<SwapchainImage>>,
         queue: Arc<Queue>,
-        window: Arc<Box<Window>>,
+        window: Arc<Box<VulkanWindow>>,
         dimensions: [u32; 2],
         recreate_swapchain: bool,
         previous_frame_end: Option<Box<GpuFuture>>,
         framebuffers: Option<Vec<Arc<Fb>>>,
         render_pass: Arc<Rp>,
         pipeline: Arc<Pl>,
+        geometry: Arc<RwLock<GeometryData>>,
     ) -> VulkanGfxLoop {
         VulkanGfxLoop {
             camera: camera,
@@ -68,7 +70,7 @@ impl VulkanGfxLoop {
             framebuffers: framebuffers,
             render_pass: render_pass,
             pipeline: pipeline,
-            geometry: Vec::new(),
+            geometry: geometry,
         }
     }
 
@@ -109,7 +111,9 @@ impl VulkanGfxLoop {
     fn create_geometry(&self) -> Result<Vec<(Arc<SyncBufferAccess>, Arc<SyncDescriptorSet>)>> {
         let mut out: Vec<(Arc<SyncBufferAccess>, Arc<SyncDescriptorSet>)> = Vec::new();
 
-        for g in &self.geometry {
+        let geometry = &self.geometry.read().map_err(|_| gfx::Error::PoisonError)?;
+
+        for g in geometry.geometry.iter() {
             let buffer = CpuAccessibleBuffer::from_iter(
                 self.device.clone(),
                 BufferUsage::all(),
@@ -138,10 +142,6 @@ impl VulkanGfxLoop {
 }
 
 impl GfxLoop for VulkanGfxLoop {
-    fn register_geometry(&mut self, geometry_object: &GeometryObject) {
-        self.geometry.push(geometry_object.geometry());
-    }
-
     fn tick(&mut self) -> Result<()> {
         if let Some(ref mut previous_frame_end) = self.previous_frame_end {
             previous_frame_end.cleanup_finished();

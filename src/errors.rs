@@ -9,4 +9,12 @@ error_chain! {
         Texture(texture::Error);
         SystemTimeError(::std::time::SystemTimeError);
     }
+
+    errors {
+        ThreadJoin {
+        }
+
+        PoisonError {
+        }
+    }
 }
