@@ -76,6 +76,8 @@ impl Logic {
 }
 
 fn entry() -> Result<()> {
+    let mut test = Model::from_gltf(File::open("models/player.gltf")?);
+
     let mut player = Player::new();
     let camera = Arc::new(RwLock::new(Camera::new(&player)));
 

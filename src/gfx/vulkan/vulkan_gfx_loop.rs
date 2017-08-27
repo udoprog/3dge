@@ -5,13 +5,13 @@ use super::vulkan_window::VulkanWindow;
 use cgmath::{Matrix4, Rad};
 use cgmath::prelude::*;
 use gfx::GfxLoop;
+use gfx::Vertex;
 use gfx::camera_geometry::CameraGeometry;
 use gfx::errors as gfx;
 use std::f32;
-use std::marker;
 use std::mem;
 use std::sync::{Arc, RwLock};
-use vulkano::buffer::{BufferAccess, BufferUsage, CpuAccessibleBuffer};
+use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
 use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBuffer, DynamicState};
 use vulkano::descriptor::descriptor_set::DescriptorSet;
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
@@ -23,7 +23,6 @@ use vulkano::swapchain::{self, AcquireError, Swapchain};
 use vulkano::sync::GpuFuture;
 
 pub type SyncDescriptorSet = DescriptorSet + Send + ::std::marker::Sync;
-type SyncBufferAccess = BufferAccess + marker::Sync + marker::Send;
 
 pub struct VulkanGfxLoop {
     camera: Box<CameraGeometry>,
@@ -108,8 +107,10 @@ impl VulkanGfxLoop {
         Ok(Arc::new(uniform_buffer_set))
     }
 
-    fn create_geometry(&self) -> Result<Vec<(Arc<SyncBufferAccess>, Arc<SyncDescriptorSet>)>> {
-        let mut out: Vec<(Arc<SyncBufferAccess>, Arc<SyncDescriptorSet>)> = Vec::new();
+    fn create_geometry(
+        &self,
+    ) -> Result<Vec<(Arc<CpuAccessibleBuffer<[Vertex]>>, Arc<SyncDescriptorSet>)>> {
+        let mut out: Vec<(Arc<CpuAccessibleBuffer<[Vertex]>>, Arc<SyncDescriptorSet>)> = Vec::new();
 
         let geometry = &self.geometry.read().map_err(|_| gfx::Error::PoisonError)?;
 

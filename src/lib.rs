@@ -17,6 +17,7 @@ extern crate winit;
 extern crate cgmath;
 extern crate bit_vec;
 extern crate image;
+extern crate gltf;
 
 pub mod events;
 pub mod errors;
@@ -28,3 +29,4 @@ pub mod player;
 pub mod camera;
 pub mod texture;
 pub mod gfx_thread;
+pub mod model;

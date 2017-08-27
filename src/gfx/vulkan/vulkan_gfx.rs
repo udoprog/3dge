@@ -1,4 +1,3 @@
-use super::UniformModel;
 use super::errors::*;
 use super::geometry_data::GeometryData;
 use super::geometry_entry::GeometryEntry;

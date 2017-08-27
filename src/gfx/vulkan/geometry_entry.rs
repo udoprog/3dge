@@ -1,4 +1,3 @@
-use super::UniformModel;
 use gfx::Vertex;
 use gfx::geometry::Geometry;
 use std::sync::Arc;

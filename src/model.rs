@@ -1,8 +1,11 @@
+use super::errors::*;
 use cgmath::{Matrix4, Point3};
 use cgmath::prelude::*;
 use gfx::Vertex;
 use gfx::errors as gfx;
 use gfx::geometry::{Geometry, GeometryObject};
+use gltf::Gltf;
+use std::io::{BufReader, Read};
 use std::sync::{Arc, RwLock};
 
 pub struct ModelGeometry {
@@ -10,24 +13,30 @@ pub struct ModelGeometry {
     mesh: Vec<Vertex>,
 }
 
-impl ModelGeometry {
-    pub fn new(mesh: Vec<Vertex>) -> ModelGeometry {
-        ModelGeometry {
-            location: Point3::new(0.0, 0.0, 0.0),
-            mesh: mesh,
-        }
-    }
-}
-
 pub struct Model {
     geometry: Arc<RwLock<ModelGeometry>>,
 }
 
 impl Model {
-    pub fn from_gltf() -> Result<Model> {}
+    pub fn from_gltf<R>(reader: R) -> Result<Model>
+    where
+        R: Read,
+    {
+        let gltf = Gltf::from_reader(BufReader::new(reader))?
+            .validate_minimally()?;
 
-    pub fn new() -> Model {
-        Model { geometry: Arc::new(RwLock::new(ModelGeometry::new())) }
+        let mut mesh = Vec::new();
+
+        println!("model = {:?}", gltf);
+
+        let model = Model {
+            geometry: Arc::new(RwLock::new(ModelGeometry {
+                location: Point3::new(0.0, 0.0, 0.0),
+                mesh: mesh,
+            })),
+        };
+
+        Ok(model)
     }
 
     pub fn transform(&mut self, transform: &Matrix4<f32>) -> gfx::Result<()> {
@@ -60,6 +69,6 @@ impl Geometry for Arc<RwLock<ModelGeometry>> {
 
     fn vertices(&self) -> gfx::Result<Vec<Vertex>> {
         let g = self.read().map_err(|_| gfx::Error::PoisonError)?;
-        Ok(g.vertices.clone())
+        Ok(g.mesh.clone())
     }
 }
