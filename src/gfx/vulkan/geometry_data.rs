@@ -1,15 +1,15 @@
-use gfx::geometry::Geometry;
+use super::geometry_entry::GeometryEntry;
 
 pub struct GeometryData {
-    pub geometry: Vec<Box<Geometry>>,
+    pub entries: Vec<GeometryEntry>,
 }
 
 impl GeometryData {
     pub fn new() -> GeometryData {
-        GeometryData { geometry: Vec::new() }
+        GeometryData { entries: Vec::new() }
     }
 
-    pub fn push(&mut self, geometry: Box<Geometry>) {
-        self.geometry.push(geometry);
+    pub fn push(&mut self, entry: GeometryEntry) {
+        self.entries.push(entry);
     }
 }

@@ -113,14 +113,9 @@ impl VulkanGfxLoop {
 
         let geometry = &self.geometry.read().map_err(|_| gfx::Error::PoisonError)?;
 
-        for g in geometry.geometry.iter() {
-            let buffer = CpuAccessibleBuffer::from_iter(
-                self.device.clone(),
-                BufferUsage::all(),
-                g.vertices()?.iter().cloned(),
-            )?;
-
-            let transformation = g.transformation()?;
+        for entry in &geometry.entries {
+            let buffer = entry.buffer.clone();
+            let transformation = entry.geometry.transformation()?;
 
             let model = UniformModel { model: transformation.into() };
 

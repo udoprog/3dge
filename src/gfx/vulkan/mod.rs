@@ -8,6 +8,7 @@ mod vulkan_gfx_instance;
 mod vulkan_gfx_loop;
 mod vulkan_gfx;
 mod geometry_data;
+mod geometry_entry;
 
 use self::shaders::basic::vs;
 pub use self::vulkan_gfx_instance::VulkanGfxInstance;

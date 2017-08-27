@@ -9,6 +9,7 @@ use std::thread;
 
 pub struct GfxThread {
     stopped: Arc<AtomicBool>,
+    errored: Arc<AtomicBool>,
     enabled: Arc<(Mutex<bool>, Condvar)>,
     gfx: Box<Gfx>,
     handle: Option<thread::JoinHandle<Result<()>>>,
@@ -18,6 +19,7 @@ impl GfxThread {
     pub fn new(gfx: Box<Gfx>) -> GfxThread {
         GfxThread {
             stopped: Arc::new(AtomicBool::new(false)),
+            errored: Arc::new(AtomicBool::new(false)),
             enabled: Arc::new((Mutex::new(false), Condvar::new())),
             gfx: gfx,
             handle: None,
@@ -32,6 +34,10 @@ impl GfxThread {
         *guard = state;
         self.enabled.1.notify_all();
         Ok(())
+    }
+
+    pub fn errored(&self) -> bool {
+        self.errored.load(Ordering::Relaxed)
     }
 
     pub fn stop(&mut self) -> Result<()> {
@@ -52,12 +58,13 @@ impl GfxThread {
 
     pub fn start(&mut self, camera: Box<CameraGeometry>) {
         let gfx = self.gfx.clone();
+        let errored = self.errored.clone();
         let stopped = self.stopped.clone();
         let enabled = self.enabled.clone();
 
         self.handle = Some(thread::spawn(move || {
             let mut fps_counter = FpsCounter::new(|fps| {
-                println!("fps = {}", fps);
+                info!("fps = {}", fps);
                 Ok(())
             });
 
@@ -78,7 +85,12 @@ impl GfxThread {
                     }
                 }
 
-                gfx_loop.tick()?;
+                if let Err(e) = gfx_loop.tick() {
+                    error!("error in gfx thread: {:?}", e);
+                    errored.store(true, Ordering::Relaxed);
+                    return Err(e.into());
+                }
+
                 fps_counter.tick()?;
             }
 

@@ -1,5 +1,7 @@
+use super::UniformModel;
 use super::errors::*;
 use super::geometry_data::GeometryData;
+use super::geometry_entry::GeometryEntry;
 use super::shaders::basic::{fs, vs};
 use super::vulkan_gfx_loop::VulkanGfxLoop;
 use super::vulkan_plane::VulkanPlane;
@@ -12,6 +14,7 @@ use gfx::geometry::GeometryObject;
 use gfx::plane::Plane;
 use std::f32;
 use std::sync::{Arc, RwLock};
+use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
 use vulkano::device::{Device, Queue};
 use vulkano::framebuffer::Subpass;
 use vulkano::image::SwapchainImage;
@@ -50,10 +53,21 @@ impl VulkanGfx {
 
 impl Gfx for VulkanGfx {
     fn register_geometry(&mut self, geometry_object: &GeometryObject) -> gfx::Result<()> {
+        let g = geometry_object.geometry();
+
+        let buffer = CpuAccessibleBuffer::from_iter(
+            self.device.clone(),
+            BufferUsage::all(),
+            g.vertices()?.iter().cloned(),
+        )?;
+
+        let entry = GeometryEntry::new(buffer, g);
+
         self.geometry
             .write()
             .map_err(|_| gfx::Error::PoisonError)?
-            .push(geometry_object.geometry());
+            .push(entry);
+
         Ok(())
     }
 

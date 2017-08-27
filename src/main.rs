@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate log;
+extern crate env_logger;
 extern crate winit;
 extern crate threedge;
 extern crate cgmath;
@@ -108,6 +111,11 @@ fn entry() -> Result<()> {
 
     // TODO: abstract away loop into fully event-based engine.
     'main: loop {
+        if gfx_thread.errored() {
+            error!("exiting due to error in gfx thread");
+            break;
+        }
+
         shuteye::sleep(ten_ms);
 
         if let Some(state) = focus_update.take() {
@@ -227,6 +235,8 @@ fn entry() -> Result<()> {
 }
 
 fn main() {
+    env_logger::init();
+
     if let Err(e) = entry() {
         println!("Error: {:?}", e);
         ::std::process::exit(1)

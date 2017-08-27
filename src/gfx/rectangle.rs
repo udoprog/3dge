@@ -58,32 +58,32 @@ impl Geometry for Arc<RwLock<RectangleGeometry>> {
         let mut vertices = Vec::new();
 
         vertices.push(Vertex {
-            position: [-0.5, -0.5],
+            position: [-0.5, -0.5, 0.0],
             color: color,
         });
 
         vertices.push(Vertex {
-            position: [0.5, -0.5],
+            position: [0.5, -0.5, 0.0],
             color: color,
         });
 
         vertices.push(Vertex {
-            position: [0.5, 0.5],
+            position: [0.5, 0.5, 0.0],
             color: color,
         });
 
         vertices.push(Vertex {
-            position: [-0.5, -0.5],
+            position: [-0.5, -0.5, 0.0],
             color: color,
         });
 
         vertices.push(Vertex {
-            position: [0.5, 0.5],
+            position: [0.5, 0.5, 0.0],
             color: color,
         });
 
         vertices.push(Vertex {
-            position: [-0.5, 0.5],
+            position: [-0.5, 0.5, 0.0],
             color: color,
         });
 

@@ -14,6 +14,8 @@ error-chain = "*"
 bit-vec = "0.4"
 image = "*"
 shuteye = "^0"
+log = "0.3"
+env_logger = "0.4"
 
 [dependencies.vulkano]
 version = "0.6"

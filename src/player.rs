@@ -59,32 +59,32 @@ impl Geometry for Arc<RwLock<PlayerGeometry>> {
         let green = [0.0, 1.0, 0.0];
 
         vertices.push(Vertex {
-            position: [-0.1, -0.1],
+            position: [-0.1, -0.1, 0.0],
             color: red,
         });
 
         vertices.push(Vertex {
-            position: [0.1, -0.1],
+            position: [0.1, -0.1, 0.0],
             color: red,
         });
 
         vertices.push(Vertex {
-            position: [0.1, 0.1],
+            position: [0.1, 0.1, 0.0],
             color: red,
         });
 
         vertices.push(Vertex {
-            position: [-0.1, -0.1],
+            position: [-0.1, -0.1, 0.0],
             color: green,
         });
 
         vertices.push(Vertex {
-            position: [0.1, 0.1],
+            position: [0.1, 0.1, 0.0],
             color: green,
         });
 
         vertices.push(Vertex {
-            position: [-0.1, 0.1],
+            position: [-0.1, 0.1, 0.0],
             color: green,
         });
 

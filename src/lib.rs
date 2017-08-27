@@ -10,6 +10,8 @@ extern crate vulkano_shader_derive;
 extern crate vulkano_win;
 #[macro_use]
 extern crate error_chain;
+#[macro_use]
+extern crate log;
 
 extern crate winit;
 extern crate cgmath;

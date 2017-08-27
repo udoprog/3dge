@@ -1,5 +1,7 @@
 //! # Scene Graph implementation suitable for game development
 
+#![allow(dead_code)]
+
 use std::collections::{HashMap, LinkedList};
 use std::fmt;
 use std::ptr::Shared;
