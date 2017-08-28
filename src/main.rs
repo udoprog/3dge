@@ -8,6 +8,7 @@ extern crate shuteye;
 
 use cgmath::{Matrix4, Point3, SquareMatrix, Vector3};
 use cgmath::prelude::*;
+use std::fs::File;
 
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -16,6 +17,7 @@ use threedge::errors::*;
 use threedge::gfx::color::Color;
 use threedge::gfx::rectangle::Rectangle;
 use threedge::gfx_thread::GfxThread;
+use threedge::model::Model;
 use threedge::player::Player;
 use threedge::pressed_keys::{Key, PressedKeys};
 use threedge::texture::builtin as builtin_texture;
@@ -76,7 +78,7 @@ impl Logic {
 }
 
 fn entry() -> Result<()> {
-    let mut test = Model::from_gltf(File::open("models/player.gltf")?);
+    let test = Model::from_gltf(File::open("models/player.gltf")?);
 
     let mut player = Player::new();
     let camera = Arc::new(RwLock::new(Camera::new(&player)));
@@ -237,7 +239,10 @@ fn entry() -> Result<()> {
 }
 
 fn main() {
-    env_logger::init();
+    if let Err(e) = env_logger::init() {
+        println!("failed to initialize logging: {:?}", e);
+        return;
+    }
 
     if let Err(e) = entry() {
         println!("Error: {:?}", e);

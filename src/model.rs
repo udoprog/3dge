@@ -27,7 +27,10 @@ impl Model {
 
         let mut mesh = Vec::new();
 
-        println!("model = {:?}", gltf);
+        // TODO: actually do the conversion and only support one mesh.
+        for m in gltf.meshes() {
+            for p in m.primitives() {}
+        }
 
         let model = Model {
             geometry: Arc::new(RwLock::new(ModelGeometry {
