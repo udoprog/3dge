@@ -25,7 +25,7 @@ use vulkano::sync::GpuFuture;
 pub type SyncDescriptorSet = DescriptorSet + Send + ::std::marker::Sync;
 
 pub struct VulkanGfxLoop {
-    camera: Box<CameraGeometry>,
+    camera: Arc<RwLock<Option<Box<CameraGeometry>>>>,
     device: Arc<Device>,
     swapchain: Arc<Swapchain>,
     images: Vec<Arc<SwapchainImage>>,
@@ -42,7 +42,7 @@ pub struct VulkanGfxLoop {
 
 impl VulkanGfxLoop {
     pub fn new(
-        camera: Box<CameraGeometry>,
+        camera: Arc<RwLock<Option<Box<CameraGeometry>>>>,
         device: Arc<Device>,
         swapchain: Arc<Swapchain>,
         images: Vec<Arc<SwapchainImage>>,
@@ -84,7 +84,12 @@ impl VulkanGfxLoop {
             100.0,
         );
 
-        let view = self.camera.view_transformation()?;
+        let view =
+            if let Some(ref camera) = *self.camera.read().map_err(|_| gfx::Error::PoisonError)? {
+                camera.view_transformation()?
+            } else {
+                <Matrix4<f32> as SquareMatrix>::identity()
+            };
 
         let scale = Matrix4::from_scale(1.0);
 

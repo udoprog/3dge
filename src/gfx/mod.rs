@@ -26,11 +26,14 @@ pub trait Gfx: marker::Sync + marker::Send {
     /// Create a new infinite plane, with it's normal defined according to the given `up`.
     fn new_plane(&mut self, origin: Point3<f32>, up: Vector3<f32>) -> Box<Plane>;
 
+    /// Set the camera geometry.
+    fn set_camera(&mut self, camera_geometry: Box<CameraGeometry>) -> Result<()>;
+
     /// Register a new piece of geometry that should be rendered.
     fn register_geometry(&mut self, geometry_object: &GeometryObject) -> Result<()>;
 
     /// Create a new loop.
-    fn new_loop(&self, camera: Box<CameraGeometry>) -> Result<Box<GfxLoop>>;
+    fn new_loop(&self) -> Result<Box<GfxLoop>>;
 
     /// Clone the current gfx handle.
     fn clone_boxed(&self) -> Box<Gfx>;

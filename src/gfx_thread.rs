@@ -56,7 +56,7 @@ impl GfxThread {
         Ok(())
     }
 
-    pub fn start(&mut self, camera: Box<CameraGeometry>) {
+    pub fn start(&mut self) {
         let gfx = self.gfx.clone();
         let errored = self.errored.clone();
         let stopped = self.stopped.clone();
@@ -70,7 +70,7 @@ impl GfxThread {
 
             let (ref enabled_mutex, ref enabled_cond) = *enabled;
 
-            let mut gfx_loop = gfx.new_loop(camera)?;
+            let mut gfx_loop = gfx.new_loop()?;
 
             while !stopped.load(Ordering::Relaxed) {
                 {

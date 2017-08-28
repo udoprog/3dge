@@ -22,6 +22,7 @@ use threedge::gfx_thread::GfxThread;
 use threedge::model::Model;
 use threedge::player::Player;
 use threedge::pressed_keys::{Key, PressedKeys};
+use threedge::scene::{Scene, SceneObject};
 use threedge::scheduler::{Scheduler, SelfScheduler};
 use threedge::texture::builtin as builtin_texture;
 
@@ -208,11 +209,11 @@ fn entry() -> Result<()> {
 
     // let test = Model::from_gltf(File::open("models/player.gltf")?);
 
-    let player = Player::new();
-    let camera = Arc::new(RwLock::new(Camera::new(&player)));
-
     let mut events = WinitEvents::new()?;
     let mut gfx = events.setup_gfx()?;
+
+    let player = Player::new();
+    let camera = Arc::new(RwLock::new(Camera::new(&player)));
 
     let color1 = Color::from_rgb(0.0, 0.0, 1.0);
 
@@ -222,6 +223,7 @@ fn entry() -> Result<()> {
         color1,
     );
 
+    gfx.set_camera(Box::new(camera.clone()));
     gfx.register_geometry(&rectangle1)?;
     gfx.register_geometry(&player)?;
 
@@ -232,7 +234,7 @@ fn entry() -> Result<()> {
     let mut sleep = target_sleep;
 
     let mut gfx_thread = GfxThread::new(gfx.clone());
-    gfx_thread.start(Box::new(camera.clone()));
+    gfx_thread.start();
 
     let mut gs = GameState {
         no_transform: <Matrix4<f32> as SquareMatrix>::identity(),
@@ -246,6 +248,8 @@ fn entry() -> Result<()> {
         exit: false,
         gfx_thread: gfx_thread,
     };
+
+    // let mut scene: Scene<GameState> = Scene::new(gs, gfx);
 
     scheduler.on_every_tick(Box::new(move |_, gs| {
         if gs.scroll != 0 {

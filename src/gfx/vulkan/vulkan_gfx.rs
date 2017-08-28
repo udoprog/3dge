@@ -23,6 +23,7 @@ use vulkano::sync::now;
 
 #[derive(Clone)]
 pub struct VulkanGfx {
+    camera: Arc<RwLock<Option<Box<CameraGeometry>>>>,
     device: Arc<Device>,
     window: Arc<Box<VulkanWindow>>,
     swapchain: Arc<Swapchain>,
@@ -40,6 +41,7 @@ impl VulkanGfx {
         queue: Arc<Queue>,
     ) -> VulkanGfx {
         VulkanGfx {
+            camera: Arc::new(RwLock::new(None)),
             device: device,
             window: window,
             swapchain: swapchain,
@@ -51,6 +53,12 @@ impl VulkanGfx {
 }
 
 impl Gfx for VulkanGfx {
+    fn set_camera(&mut self, camera_geometry: Box<CameraGeometry>) -> Result<()> {
+        let mut camera = self.camera.write().map_err(|_| gfx::Error::PoisonError)?;
+        *camera = Some(camera_geometry);
+        Ok(())
+    }
+
     fn register_geometry(&mut self, geometry_object: &GeometryObject) -> gfx::Result<()> {
         let g = geometry_object.geometry();
 
@@ -74,7 +82,7 @@ impl Gfx for VulkanGfx {
         Box::new(VulkanPlane::new())
     }
 
-    fn new_loop(&self, camera: Box<CameraGeometry>) -> Result<Box<GfxLoop>> {
+    fn new_loop(&self) -> Result<Box<GfxLoop>> {
         let vs = vs::Shader::load(self.device.clone())?;
         let fs = fs::Shader::load(self.device.clone())?;
 
@@ -110,7 +118,7 @@ impl Gfx for VulkanGfx {
             .build(self.device.clone())?);
 
         let gfx_loop = VulkanGfxLoop::new(
-            camera,
+            self.camera.clone(),
             self.device.clone(),
             self.swapchain.clone(),
             self.images.clone(),
