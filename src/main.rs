@@ -25,74 +25,29 @@ use threedge::pressed_keys::{Key, PressedKeys};
 use threedge::scheduler::{Scheduler, SelfScheduler};
 use threedge::texture::builtin as builtin_texture;
 
-struct Logic {
+struct GameState {
     /// Identity matrix. Nothing happens when multipled with it.
     no_transform: Matrix4<f32>,
     no_movement: Vector3<f32>,
-}
-
-impl Logic {
-    pub fn new() -> Logic {
-        Logic {
-            no_transform: <Matrix4<f32> as SquareMatrix>::identity(),
-            no_movement: Vector3::zero(),
-        }
-    }
-
-    /// Build player transform for a given frame.
-    fn player_transform(&self, keys: &PressedKeys) -> Option<Matrix4<f32>> {
-        let mut translation = None;
-
-        if keys.test(Key::MoveLeft) {
-            translation = Some(
-                translation.unwrap_or(self.no_movement) + Vector3::new(-0.02, 0.0, 0.0),
-            );
-        }
-
-        if keys.test(Key::MoveRight) {
-            translation = Some(
-                translation.unwrap_or(self.no_movement) + Vector3::new(0.02, 0.0, 0.0),
-            );
-        }
-
-        if keys.test(Key::MoveUp) {
-            translation = Some(
-                translation.unwrap_or(self.no_movement) + Vector3::new(0.0, -0.02, 0.0),
-            );
-        }
-
-        if keys.test(Key::MoveDown) {
-            translation = Some(
-                translation.unwrap_or(self.no_movement) + Vector3::new(0.0, 0.02, 0.0),
-            );
-        }
-
-        let mut transform = None;
-
-        if let Some(translation) = translation {
-            transform = Some(
-                transform.unwrap_or(self.no_transform) *
-                    Matrix4::from_translation(translation),
-            )
-        }
-
-        transform
-    }
-}
-
-struct FrameState {
+    /// Amount of recorded scrolling between frames.
     scroll: i32,
+    /// Game camera.
     camera: Arc<RwLock<Camera>>,
-    logic: Logic,
+    /// The state of all pressed keys.
     pressed_keys: PressedKeys,
+    /// The player.
     player: Player,
+    /// If focusing should be updated.
     focus_update: Option<bool>,
+    /// If the game is focused.
     focused: bool,
+    /// If the game should be exited.
     exit: bool,
+    /// Graphics thread.
     gfx_thread: GfxThread,
 }
 
-impl FrameState {
+impl GameState {
     fn update_pressed_keys(&mut self, events: &mut WinitEvents) {
         events.poll_events(|ev| {
             use winit::Event;
@@ -206,10 +161,50 @@ impl FrameState {
             }
         }
     }
+
+    /// Build player transform for a given frame.
+    fn player_transform(&self, keys: &PressedKeys) -> Option<Matrix4<f32>> {
+        let mut translation = None;
+
+        if keys.test(Key::MoveLeft) {
+            translation = Some(
+                translation.unwrap_or(self.no_movement) + Vector3::new(-0.02, 0.0, 0.0),
+            );
+        }
+
+        if keys.test(Key::MoveRight) {
+            translation = Some(
+                translation.unwrap_or(self.no_movement) + Vector3::new(0.02, 0.0, 0.0),
+            );
+        }
+
+        if keys.test(Key::MoveUp) {
+            translation = Some(
+                translation.unwrap_or(self.no_movement) + Vector3::new(0.0, -0.02, 0.0),
+            );
+        }
+
+        if keys.test(Key::MoveDown) {
+            translation = Some(
+                translation.unwrap_or(self.no_movement) + Vector3::new(0.0, 0.02, 0.0),
+            );
+        }
+
+        let mut transform = None;
+
+        if let Some(translation) = translation {
+            transform = Some(
+                transform.unwrap_or(self.no_transform) *
+                    Matrix4::from_translation(translation),
+            )
+        }
+
+        transform
+    }
 }
 
 fn entry() -> Result<()> {
-    let mut scheduler: Scheduler<FrameState> = Scheduler::new();
+    let mut scheduler: Scheduler<GameState> = Scheduler::new();
 
     // let test = Model::from_gltf(File::open("models/player.gltf")?);
 
@@ -236,15 +231,14 @@ fn entry() -> Result<()> {
     let target_sleep = Duration::from_millis(10);
     let mut sleep = target_sleep;
 
-    let _target_frame_length = Duration::from_millis(1000 / 60);
-
     let mut gfx_thread = GfxThread::new(gfx.clone());
     gfx_thread.start(Box::new(camera.clone()));
 
-    let mut frame_state = FrameState {
+    let mut gs = GameState {
+        no_transform: <Matrix4<f32> as SquareMatrix>::identity(),
+        no_movement: Vector3::zero(),
         scroll: 0i32,
         camera: camera.clone(),
-        logic: Logic::new(),
         pressed_keys: PressedKeys::new(),
         player: player,
         focus_update: None,
@@ -253,55 +247,41 @@ fn entry() -> Result<()> {
         gfx_thread: gfx_thread,
     };
 
-    scheduler.on_every_tick(Box::new(move |_, frame_state| {
-        if frame_state.scroll != 0 {
-            let mut camera = frame_state.camera.write().map_err(
-                |_| ErrorKind::PoisonError,
-            )?;
+    scheduler.on_every_tick(Box::new(move |_, gs| {
+        if gs.scroll != 0 {
+            let mut camera = gs.camera.write().map_err(|_| ErrorKind::PoisonError)?;
 
-            let amount = (-frame_state.scroll as f32) * 0.005;
+            let amount = (-gs.scroll as f32) * 0.005;
 
             camera.modify_zoom(amount);
 
             // reset accumulated scroll amount
-            frame_state.scroll = 0i32;
+            gs.scroll = 0i32;
         }
 
         Ok(())
     }));
 
-    scheduler.on_every_tick(Box::new(|_, frame_state| {
+    scheduler.on_every_tick(Box::new(|_, gs| {
         // perform player transform based on pressed keys
-        if let Some(transform) = frame_state.logic.player_transform(
-            &frame_state.pressed_keys,
-        )
-        {
-            frame_state.player.transform(&transform)?;
+        if let Some(transform) = gs.player_transform(&gs.pressed_keys) {
+            gs.player.transform(&transform)?;
         }
 
         Ok(())
     }));
 
-    scheduler.on_every_tick(Box::new(|_, mut frame_state| {
-        if let Some(state) = frame_state.focus_update.take() {
-            frame_state.gfx_thread.enabled(state)?;
-            frame_state.focused = state;
+    scheduler.on_every_tick(Box::new(|_, mut gs| {
+        if let Some(state) = gs.focus_update.take() {
+            gs.gfx_thread.enabled(state)?;
+            gs.focused = state;
         }
 
         Ok(())
     }));
-
-    scheduler.run_at(
-        10,
-        Box::new(|sched, _| {
-            println!("happened in ten ticks...");
-            sched.run_self_at(10);
-            Ok(())
-        }),
-    );
 
     loop {
-        if frame_state.gfx_thread.errored() {
+        if gs.gfx_thread.errored() {
             error!("exiting due to error in gfx thread");
             break;
         }
@@ -310,9 +290,9 @@ fn entry() -> Result<()> {
 
         let before = Instant::now();
 
-        frame_state.update_pressed_keys(&mut events);
+        gs.update_pressed_keys(&mut events);
 
-        scheduler.tick(&mut frame_state)?;
+        scheduler.tick(&mut gs)?;
 
         let elapsed = before.elapsed();
 
@@ -326,12 +306,12 @@ fn entry() -> Result<()> {
             );
         }
 
-        if frame_state.exit {
+        if gs.exit {
             break;
         }
     }
 
-    frame_state.gfx_thread.stop()?;
+    gs.gfx_thread.stop()?;
     Ok(())
 }
 
