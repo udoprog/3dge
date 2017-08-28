@@ -1,3 +1,4 @@
+use super::camera::Camera;
 use super::errors::*;
 use super::player::Player;
 use super::scheduler::Scheduler;
@@ -12,11 +13,12 @@ pub struct Scene<S> {
 
 pub enum SceneObject {
     Player(Player),
+    Camera(Arc<RwLock<Camera>>),
 }
 
 impl<S> Scene<S> {
     /// Create a new, empty scene.
-    pub fn new(state: S, gfx: Box<Gfx>) -> Scene<S> {
+    pub fn new(state: S) -> Scene<S> {
         Scene {
             state: state,
             objects: Vec::new(),
@@ -31,6 +33,23 @@ impl<S> Scene<S> {
     /// Register the given scene object.
     pub fn register<O: Into<SceneObject>>(&mut self, object: O) {
         self.objects.push(object.into());
+    }
+
+    pub fn setup(&self, gfx: &mut Gfx) -> Result<()> {
+        use self::SceneObject::*;
+
+        for object in &self.objects {
+            match *object {
+                Player(ref player) => {
+                    gfx.register_geometry(player)?;
+                }
+                Camera(ref camera) => {
+                    gfx.set_camera(camera)?;
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 

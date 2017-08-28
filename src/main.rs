@@ -223,7 +223,7 @@ fn entry() -> Result<()> {
         color1,
     );
 
-    gfx.set_camera(Box::new(camera.clone()));
+    gfx.set_camera(&camera)?;
     gfx.register_geometry(&rectangle1)?;
     gfx.register_geometry(&player)?;
 

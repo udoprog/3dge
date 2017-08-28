@@ -12,4 +12,8 @@ impl GeometryData {
     pub fn push(&mut self, entry: GeometryEntry) {
         self.entries.push(entry);
     }
+
+    pub fn clear(&mut self) {
+        self.entries.clear();
+    }
 }

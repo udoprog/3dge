@@ -8,8 +8,9 @@ use super::vulkan_window::VulkanWindow;
 use cgmath::{Point3, Vector3};
 use gfx::{Gfx, GfxLoop, Vertex};
 use gfx::camera_geometry::CameraGeometry;
+use gfx::camera_object::CameraObject;
 use gfx::errors as gfx;
-use gfx::geometry::GeometryObject;
+use gfx::geometry_object::GeometryObject;
 use gfx::plane::Plane;
 use std::f32;
 use std::sync::{Arc, RwLock};
@@ -53,9 +54,20 @@ impl VulkanGfx {
 }
 
 impl Gfx for VulkanGfx {
-    fn set_camera(&mut self, camera_geometry: Box<CameraGeometry>) -> Result<()> {
+    fn clear(&mut self) -> Result<()> {
+        *self.camera.write().map_err(|_| gfx::Error::PoisonError)? = None;
+
+        self.geometry
+            .write()
+            .map_err(|_| gfx::Error::PoisonError)?
+            .clear();
+
+        Ok(())
+    }
+
+    fn set_camera(&mut self, camera_object: &CameraObject) -> Result<()> {
         let mut camera = self.camera.write().map_err(|_| gfx::Error::PoisonError)?;
-        *camera = Some(camera_geometry);
+        *camera = Some(camera_object.geometry());
         Ok(())
     }
 

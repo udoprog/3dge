@@ -1,7 +1,9 @@
 use cgmath::{Matrix4, Point3, Vector3};
 use gfx::camera_geometry::CameraGeometry;
+use gfx::camera_object::CameraObject;
 use gfx::errors as gfx;
-use gfx::geometry::{Geometry, GeometryObject};
+use gfx::geometry::Geometry;
+use gfx::geometry_object::GeometryObject;
 use std::sync::{Arc, RwLock};
 
 /// A camera that always looks at a piece of geometry.
@@ -23,6 +25,12 @@ impl Camera {
     pub fn modify_zoom(&mut self, zoom: f32) {
         let new_zoom = self.zoom + zoom;
         self.zoom = f32::min(0.9, f32::max(0.0, new_zoom));
+    }
+}
+
+impl CameraObject for Arc<RwLock<Camera>> {
+    fn geometry(&self) -> Box<CameraGeometry> {
+        Box::new(self.clone())
     }
 }
 

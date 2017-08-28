@@ -15,9 +15,3 @@ pub trait Geometry: Send + Sync {
     /// Get all vertices associated with the geometry.
     fn vertices(&self) -> Result<Vec<Vertex>>;
 }
-
-pub trait GeometryObject {
-    /// Get geometry associated with the game object.
-    /// Geometry determines it's location in the world, rotation, and scale.
-    fn geometry(&self) -> Box<Geometry>;
-}

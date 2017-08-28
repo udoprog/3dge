@@ -2,7 +2,8 @@ use cgmath::{Matrix4, Point3};
 use cgmath::prelude::*;
 use gfx::Vertex;
 use gfx::errors as gfx;
-use gfx::geometry::{Geometry, GeometryObject};
+use gfx::geometry::Geometry;
+use gfx::geometry_object::GeometryObject;
 use std::sync::{Arc, RwLock};
 
 pub struct PlayerGeometry {
