@@ -1,8 +1,9 @@
 use super::errors::*;
 use std::collections::HashMap;
+use std::mem;
 
 /// Every callback gets exclusive access to the scheduler, permitting them to modify subsequent scheduling.
-pub type CallbackFn<S> = Fn(&mut SchedulerInterface<S>, &mut S) -> Result<()>;
+pub type CallbackFn<S> = Fn(&mut SelfScheduler<S>, &mut S) -> Result<()>;
 
 enum Task<S> {
     RunAt {
@@ -10,6 +11,10 @@ enum Task<S> {
         callback: Box<CallbackFn<S>>,
     },
     OnEveryTick { callback: Box<CallbackFn<S>> },
+}
+
+pub enum SelfTask {
+    RunAt { tick_offset: u32 },
 }
 
 pub struct Scheduler<S> {
@@ -34,12 +39,27 @@ impl<S> Scheduler<S> {
 
         // run the things that happen on every tick
         for task in &self.on_every_tick {
-            task(&mut new_tasks, state)?;
+            let mut internal = (&mut new_tasks, None);
+            task(&mut internal, state)?;
         }
 
         if let Some(tasks) = self.on_tick.remove(&current_tick) {
             for task in tasks {
-                task(&mut new_tasks, state)?;
+                let mut internal = (&mut new_tasks, None);
+
+                task(&mut internal, state)?;
+
+                // Current task has requested to be re-scheduled.
+                if let Some(self_task) = internal.1 {
+                    match self_task {
+                        SelfTask::RunAt { tick_offset } => {
+                            self.on_tick
+                                .entry(current_tick + tick_offset as u64)
+                                .or_insert_with(Vec::new)
+                                .push(task);
+                        }
+                    }
+                }
             }
         }
 
@@ -65,38 +85,46 @@ impl<S> Scheduler<S> {
         self.current_tick = current_tick + 1;
         Ok(())
     }
-}
 
-pub trait SchedulerInterface<S> {
-    /// Run the given task at the given tick offset.
-    fn run_at(&mut self, tick_offset: u32, callback: Box<CallbackFn<S>>);
-
-    /// Run on every tick, from now until eternity.
-    fn on_every_tick(&mut self, callback: Box<CallbackFn<S>>);
-}
-
-impl<S> SchedulerInterface<S> for Scheduler<S> {
-    fn run_at(&mut self, tick_offset: u32, callback: Box<CallbackFn<S>>) {
+    pub fn run_at(&mut self, tick_offset: u32, callback: Box<CallbackFn<S>>) {
         self.on_tick
             .entry(self.current_tick + tick_offset as u64)
             .or_insert_with(Vec::new)
             .push(callback);
     }
 
-    fn on_every_tick(&mut self, callback: Box<CallbackFn<S>>) {
+    pub fn on_every_tick(&mut self, callback: Box<CallbackFn<S>>) {
         self.on_every_tick.push(callback);
     }
 }
 
-impl<S> SchedulerInterface<S> for Vec<Task<S>> {
+pub trait SelfScheduler<S> {
+    /// Run the given task at the given tick offset.
+    fn run_at(&mut self, tick_offset: u32, callback: Box<CallbackFn<S>>);
+
+    /// Run on every tick, from now until eternity.
+    fn on_every_tick(&mut self, callback: Box<CallbackFn<S>>);
+
+    /// Re-schedule self.
+    fn run_self_at(&mut self, tick_offset: u32);
+}
+
+impl<'a, S> SelfScheduler<S> for (&'a mut Vec<Task<S>>, Option<SelfTask>) {
     fn run_at(&mut self, tick_offset: u32, callback: Box<CallbackFn<S>>) {
-        self.push(Task::RunAt {
+        self.0.push(Task::RunAt {
             tick_offset: tick_offset,
             callback: callback,
         });
     }
 
     fn on_every_tick(&mut self, callback: Box<CallbackFn<S>>) {
-        self.push(Task::OnEveryTick { callback: callback });
+        self.0.push(Task::OnEveryTick { callback: callback });
+    }
+
+    fn run_self_at(&mut self, tick_offset: u32) {
+        mem::replace(
+            &mut self.1,
+            Some(SelfTask::RunAt { tick_offset: tick_offset }),
+        );
     }
 }

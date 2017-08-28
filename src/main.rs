@@ -22,7 +22,7 @@ use threedge::gfx_thread::GfxThread;
 use threedge::model::Model;
 use threedge::player::Player;
 use threedge::pressed_keys::{Key, PressedKeys};
-use threedge::scheduler::{Scheduler, SchedulerInterface};
+use threedge::scheduler::{Scheduler, SelfScheduler};
 use threedge::texture::builtin as builtin_texture;
 
 struct Logic {
@@ -292,9 +292,10 @@ fn entry() -> Result<()> {
     }));
 
     scheduler.run_at(
-        1000,
-        Box::new(|_, _| {
-            info!("happened in ten ticks...");
+        10,
+        Box::new(|sched, _| {
+            println!("happened in ten ticks...");
+            sched.run_self_at(10);
             Ok(())
         }),
     );
@@ -304,8 +305,6 @@ fn entry() -> Result<()> {
             error!("exiting due to error in gfx thread");
             break;
         }
-
-        println!("sleep = {:?}", sleep);
 
         shuteye::sleep(sleep);
 
