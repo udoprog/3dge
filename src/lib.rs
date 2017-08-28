@@ -30,3 +30,4 @@ pub mod camera;
 pub mod texture;
 pub mod gfx_thread;
 pub mod model;
+pub mod scheduler;

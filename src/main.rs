@@ -12,14 +12,17 @@ use std::fs::File;
 
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
+use std::time::Instant;
 use threedge::camera::Camera;
 use threedge::errors::*;
+use threedge::events::winit::WinitEvents;
 use threedge::gfx::color::Color;
 use threedge::gfx::rectangle::Rectangle;
 use threedge::gfx_thread::GfxThread;
 use threedge::model::Model;
 use threedge::player::Player;
 use threedge::pressed_keys::{Key, PressedKeys};
+use threedge::scheduler::{Scheduler, SchedulerInterface};
 use threedge::texture::builtin as builtin_texture;
 
 struct Logic {
@@ -77,13 +80,143 @@ impl Logic {
     }
 }
 
-fn entry() -> Result<()> {
-    let test = Model::from_gltf(File::open("models/player.gltf")?);
+struct FrameState {
+    scroll: i32,
+    camera: Arc<RwLock<Camera>>,
+    logic: Logic,
+    pressed_keys: PressedKeys,
+    player: Player,
+    focus_update: Option<bool>,
+    focused: bool,
+    exit: bool,
+    gfx_thread: GfxThread,
+}
 
-    let mut player = Player::new();
+impl FrameState {
+    fn update_pressed_keys(&mut self, events: &mut WinitEvents) {
+        events.poll_events(|ev| {
+            use winit::Event;
+            use winit::DeviceEvent;
+            use winit::WindowEvent;
+
+            match ev {
+                Event::WindowEvent { event: WindowEvent::Closed, .. } => self.exit = true,
+                Event::WindowEvent { event: WindowEvent::Focused(state), .. } => {
+                    self.focus_update = Some(state);
+                }
+                Event::WindowEvent { .. } => {
+                    // ignore other window events
+                }
+                Event::DeviceEvent { event: DeviceEvent::Key(input), .. } => {
+                    self.handle_device_event(input);
+                }
+                Event::DeviceEvent {
+                    event: DeviceEvent::Motion { axis: 3, value, .. }, ..
+                } => {
+                    self.scroll += value as i32;
+                }
+                Event::DeviceEvent { .. } => {
+                    // ignore other device events
+                }
+                e => {
+                    println!("event = {:?}", e);
+                }
+            }
+        });
+    }
+
+    fn handle_device_event(&mut self, input: winit::KeyboardInput) {
+        use winit::KeyboardInput;
+        use winit::VirtualKeyCode;
+        use winit::ElementState;
+
+        match input {
+            KeyboardInput {
+                virtual_keycode: Some(VirtualKeyCode::Escape),
+                state: ElementState::Released,
+                ..
+            } => {
+                // only exit if focused
+                if !self.exit {
+                    self.exit = self.focused;
+                }
+            }
+            KeyboardInput {
+                virtual_keycode: Some(VirtualKeyCode::A),
+                state,
+                ..
+            } => {
+                self.pressed_keys.set(
+                    Key::MoveLeft,
+                    state == ElementState::Pressed,
+                );
+            }
+            KeyboardInput {
+                virtual_keycode: Some(VirtualKeyCode::D),
+                state,
+                ..
+            } => {
+                self.pressed_keys.set(
+                    Key::MoveRight,
+                    state == ElementState::Pressed,
+                );
+            }
+            KeyboardInput {
+                virtual_keycode: Some(VirtualKeyCode::W),
+                state,
+                ..
+            } => {
+                self.pressed_keys.set(
+                    Key::MoveUp,
+                    state == ElementState::Pressed,
+                );
+            }
+            KeyboardInput {
+                virtual_keycode: Some(VirtualKeyCode::S),
+                state,
+                ..
+            } => {
+                self.pressed_keys.set(
+                    Key::MoveDown,
+                    state == ElementState::Pressed,
+                );
+            }
+            KeyboardInput {
+                virtual_keycode: Some(VirtualKeyCode::Q),
+                state,
+                ..
+            } => {
+                self.pressed_keys.set(
+                    Key::RollLeft,
+                    state == ElementState::Pressed,
+                );
+            }
+            KeyboardInput {
+                virtual_keycode: Some(VirtualKeyCode::E),
+                state,
+                ..
+            } => {
+                self.pressed_keys.set(
+                    Key::RollRight,
+                    state == ElementState::Pressed,
+                );
+            }
+            _ => {
+                // println!("input = {:?}", input);
+            }
+        }
+    }
+}
+
+fn entry() -> Result<()> {
+    let mut scheduler: Scheduler<FrameState> = Scheduler::new();
+
+    // let test = Model::from_gltf(File::open("models/player.gltf")?);
+
+    let player = Player::new();
     let camera = Arc::new(RwLock::new(Camera::new(&player)));
 
-    let mut events = threedge::events::winit::WinitEvents::new()?;
+    let mut events = WinitEvents::new()?;
     let mut gfx = events.setup_gfx()?;
 
     let color1 = Color::from_rgb(0.0, 0.0, 1.0);
@@ -100,141 +233,106 @@ fn entry() -> Result<()> {
     let mut plane = gfx.new_plane(Point3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 0.0, 1.0));
     plane.bind_texture(&builtin_texture::debug()?)?;
 
-    let mut focus_update = None;
-    let mut focused = true;
-    let mut pressed_keys = PressedKeys::new();
-    let mut scroll_amount = 0i32;
-
-    let ten_ms = Duration::from_millis(10);
-    let logic = Logic::new();
+    let target_sleep = Duration::from_millis(10);
+    let mut sleep = target_sleep;
 
     let _target_frame_length = Duration::from_millis(1000 / 60);
 
     let mut gfx_thread = GfxThread::new(gfx.clone());
     gfx_thread.start(Box::new(camera.clone()));
 
-    // TODO: abstract away loop into fully event-based engine.
-    'main: loop {
-        if gfx_thread.errored() {
+    let mut frame_state = FrameState {
+        scroll: 0i32,
+        camera: camera.clone(),
+        logic: Logic::new(),
+        pressed_keys: PressedKeys::new(),
+        player: player,
+        focus_update: None,
+        focused: true,
+        exit: false,
+        gfx_thread: gfx_thread,
+    };
+
+    scheduler.on_every_tick(Box::new(move |_, frame_state| {
+        if frame_state.scroll != 0 {
+            let mut camera = frame_state.camera.write().map_err(
+                |_| ErrorKind::PoisonError,
+            )?;
+
+            let amount = (-frame_state.scroll as f32) * 0.005;
+
+            camera.modify_zoom(amount);
+
+            // reset accumulated scroll amount
+            frame_state.scroll = 0i32;
+        }
+
+        Ok(())
+    }));
+
+    scheduler.on_every_tick(Box::new(|_, frame_state| {
+        // perform player transform based on pressed keys
+        if let Some(transform) = frame_state.logic.player_transform(
+            &frame_state.pressed_keys,
+        )
+        {
+            frame_state.player.transform(&transform)?;
+        }
+
+        Ok(())
+    }));
+
+    scheduler.on_every_tick(Box::new(|_, mut frame_state| {
+        if let Some(state) = frame_state.focus_update.take() {
+            frame_state.gfx_thread.enabled(state)?;
+            frame_state.focused = state;
+        }
+
+        Ok(())
+    }));
+
+    scheduler.run_at(
+        1000,
+        Box::new(|_, _| {
+            info!("happened in ten ticks...");
+            Ok(())
+        }),
+    );
+
+    loop {
+        if frame_state.gfx_thread.errored() {
             error!("exiting due to error in gfx thread");
             break;
         }
 
-        shuteye::sleep(ten_ms);
+        println!("sleep = {:?}", sleep);
 
-        if let Some(state) = focus_update.take() {
-            gfx_thread.enabled(state)?;
-            focused = state;
+        shuteye::sleep(sleep);
+
+        let before = Instant::now();
+
+        frame_state.update_pressed_keys(&mut events);
+
+        scheduler.tick(&mut frame_state)?;
+
+        let elapsed = before.elapsed();
+
+        if let Some(s) = target_sleep.checked_sub(elapsed) {
+            sleep = s;
+        } else {
+            warn!(
+                "frame took longer ({:?}) than the desired frame length ({:?}) to execute",
+                elapsed,
+                target_sleep
+            );
         }
 
-        if let Some(transform) = logic.player_transform(&pressed_keys) {
-            player.transform(&transform)?;
-        }
-
-        if scroll_amount != 0 {
-            let mut camera = camera.write().map_err(|_| ErrorKind::PoisonError)?;
-            let amount = (-scroll_amount as f32) * 0.005;
-            camera.modify_zoom(amount);
-            scroll_amount = 0i32;
-        }
-
-        let mut exit = false;
-
-        events.poll_events(|ev| {
-            use winit::Event;
-            use winit::DeviceEvent;
-            use winit::WindowEvent;
-            use winit::KeyboardInput;
-            use winit::VirtualKeyCode;
-            use winit::ElementState;
-
-            match ev {
-                Event::WindowEvent { event: WindowEvent::Closed, .. } => exit = true,
-                Event::WindowEvent { event: WindowEvent::Focused(state), .. } => {
-                    focus_update = Some(state);
-                }
-                Event::WindowEvent { .. } => {
-                    // ignore other window events
-                }
-                Event::DeviceEvent { event: DeviceEvent::Key(input), .. } => {
-                    match input {
-                        KeyboardInput {
-                            virtual_keycode: Some(VirtualKeyCode::Escape),
-                            state: ElementState::Released,
-                            ..
-                        } => {
-                            // only exit if focused
-                            if !exit {
-                                exit = focused;
-                            }
-                        }
-                        KeyboardInput {
-                            virtual_keycode: Some(VirtualKeyCode::A),
-                            state,
-                            ..
-                        } => {
-                            pressed_keys.set(Key::MoveLeft, state == ElementState::Pressed);
-                        }
-                        KeyboardInput {
-                            virtual_keycode: Some(VirtualKeyCode::D),
-                            state,
-                            ..
-                        } => {
-                            pressed_keys.set(Key::MoveRight, state == ElementState::Pressed);
-                        }
-                        KeyboardInput {
-                            virtual_keycode: Some(VirtualKeyCode::W),
-                            state,
-                            ..
-                        } => {
-                            pressed_keys.set(Key::MoveUp, state == ElementState::Pressed);
-                        }
-                        KeyboardInput {
-                            virtual_keycode: Some(VirtualKeyCode::S),
-                            state,
-                            ..
-                        } => {
-                            pressed_keys.set(Key::MoveDown, state == ElementState::Pressed);
-                        }
-                        KeyboardInput {
-                            virtual_keycode: Some(VirtualKeyCode::Q),
-                            state,
-                            ..
-                        } => {
-                            pressed_keys.set(Key::RollLeft, state == ElementState::Pressed);
-                        }
-                        KeyboardInput {
-                            virtual_keycode: Some(VirtualKeyCode::E),
-                            state,
-                            ..
-                        } => {
-                            pressed_keys.set(Key::RollRight, state == ElementState::Pressed);
-                        }
-                        _ => {
-                            // println!("input = {:?}", input);
-                        }
-                    }
-                }
-                Event::DeviceEvent {
-                    event: DeviceEvent::Motion { axis: 3, value, .. }, ..
-                } => {
-                    scroll_amount += value as i32;
-                }
-                Event::DeviceEvent { .. } => {
-                    // ignore other device events
-                }
-                e => {
-                    println!("event = {:?}", e);
-                }
-            }
-        });
-
-        if exit {
-            break 'main;
+        if frame_state.exit {
+            break;
         }
     }
 
-    gfx_thread.stop()?;
+    frame_state.gfx_thread.stop()?;
     Ok(())
 }
 
