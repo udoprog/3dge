@@ -8,7 +8,9 @@ extern crate shuteye;
 
 use cgmath::{Matrix4, Point3, SquareMatrix, Vector3};
 use cgmath::prelude::*;
+use std::cell::RefCell;
 use std::mem;
+use std::rc::Rc;
 
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -16,21 +18,19 @@ use std::time::Instant;
 use threedge::camera::{Camera, CameraScroll};
 use threedge::errors::*;
 use threedge::events::winit::WinitEvents;
+use threedge::gfx::Gfx;
 use threedge::gfx::color::Color;
 use threedge::gfx::rectangle::Rectangle;
 use threedge::gfx_thread::GfxThread;
 use threedge::player::{Player, PlayerTransform};
 use threedge::pressed_keys::{Key, PressedKeys};
-use threedge::scene::{Scene, SceneObject};
-use threedge::scheduler::{Scheduler, SchedulerSetup, SelfScheduler};
-use threedge::texture::builtin as builtin_texture;
+use threedge::scene::Scene;
 
-struct GameState {
+struct CoreState {
     /// Identity matrix. Nothing happens when multipled with it.
     no_transform: Matrix4<f32>,
+    /// No movement.
     no_movement: Vector3<f32>,
-    /// Amount of recorded scrolling between frames.
-    scroll: i32,
     /// The state of all pressed keys.
     pressed_keys: PressedKeys,
     /// If focusing should be updated.
@@ -39,13 +39,23 @@ struct GameState {
     focused: bool,
     /// If the game should be exited.
     exit: bool,
-    /// Graphics thread.
+    /// Amount of recorded scrolling between frames.
+    scroll: i32,
+    /// Events associated with the core state.
+    events: WinitEvents,
+    /// Graphics subsystem.
+    gfx: Box<Gfx>,
+    /// Graphics thread handle.
     gfx_thread: GfxThread,
 }
 
-impl GameState {
-    fn update_pressed_keys(&mut self, events: &mut WinitEvents) {
-        events.poll_events(|ev| {
+impl CoreState {
+    fn update_pressed_keys(&mut self) {
+        let mut events = Vec::new();
+
+        self.events.poll_events(|ev| events.push(ev));
+
+        for ev in events {
             use winit::Event;
             use winit::DeviceEvent;
             use winit::WindowEvent;
@@ -73,7 +83,7 @@ impl GameState {
                     println!("event = {:?}", e);
                 }
             }
-        });
+        }
     }
 
     fn handle_device_event(&mut self, input: winit::KeyboardInput) {
@@ -159,40 +169,42 @@ impl GameState {
     }
 }
 
-impl CameraScroll for GameState {
-    fn take_scroll(&mut self) -> i32 {
+impl CameraScroll for CoreState {
+    fn take_scroll(&mut self) -> Result<i32> {
         if self.scroll != 0 {
-            return mem::replace(&mut self.scroll, 0);
+            return Ok(mem::replace(&mut self.scroll, 0));
         }
 
-        0
+        Ok(0)
     }
 }
 
-impl PlayerTransform for GameState {
+impl PlayerTransform for CoreState {
     /// Build player transform for a given frame.
-    fn player_transform(&mut self) -> Option<Matrix4<f32>> {
+    fn player_transform(&mut self) -> Result<Option<Matrix4<f32>>> {
         let mut translation = None;
 
-        if self.pressed_keys.test(Key::MoveLeft) {
+        let pressed_keys = &self.pressed_keys;
+
+        if pressed_keys.test(Key::MoveLeft) {
             translation = Some(
                 translation.unwrap_or(self.no_movement) + Vector3::new(-0.02, 0.0, 0.0),
             );
         }
 
-        if self.pressed_keys.test(Key::MoveRight) {
+        if pressed_keys.test(Key::MoveRight) {
             translation = Some(
                 translation.unwrap_or(self.no_movement) + Vector3::new(0.02, 0.0, 0.0),
             );
         }
 
-        if self.pressed_keys.test(Key::MoveUp) {
+        if pressed_keys.test(Key::MoveUp) {
             translation = Some(
                 translation.unwrap_or(self.no_movement) + Vector3::new(0.0, -0.02, 0.0),
             );
         }
 
-        if self.pressed_keys.test(Key::MoveDown) {
+        if pressed_keys.test(Key::MoveDown) {
             translation = Some(
                 translation.unwrap_or(self.no_movement) + Vector3::new(0.0, 0.02, 0.0),
             );
@@ -207,20 +219,15 @@ impl PlayerTransform for GameState {
             )
         }
 
-        transform
+        Ok(transform)
     }
 }
 
-fn entry() -> Result<()> {
-    let mut scheduler: Scheduler<GameState> = Scheduler::new();
+struct SceneState {}
 
-    // let test = Model::from_gltf(File::open("models/player.gltf")?);
-
-    let mut events = WinitEvents::new()?;
-    let mut gfx = events.setup_gfx()?;
-
-    let mut player = Player::new();
-    let mut camera = Arc::new(RwLock::new(Camera::new(&player)));
+fn setup_scene() -> Scene<CoreState, SceneState> {
+    let player = Player::new();
+    let camera = Arc::new(RwLock::new(Camera::new(&player)));
 
     let color1 = Color::from_rgb(0.0, 0.0, 1.0);
 
@@ -230,76 +237,93 @@ fn entry() -> Result<()> {
         color1,
     );
 
-    gfx.set_camera(&camera)?;
-    gfx.register_geometry(&rectangle1)?;
-    gfx.register_geometry(&player)?;
+    let mut scene: Scene<CoreState, _> = Scene::new(SceneState {});
 
-    let mut plane = gfx.new_plane(Point3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 0.0, 1.0));
-    plane.bind_texture(&builtin_texture::debug()?)?;
+    scene.register(rectangle1);
+    scene.register(player);
+    scene.register(camera);
 
-    let target_sleep = Duration::from_millis(10);
-    let mut sleep = target_sleep;
+    scene
+}
 
-    let mut gfx_thread = GfxThread::new(gfx.clone());
-    gfx_thread.start();
+fn entry() -> Result<()> {
+    // let test = Model::from_gltf(File::open("models/player.gltf")?);
 
-    let mut gs = GameState {
+    let events = WinitEvents::new()?;
+    let mut gfx = events.setup_gfx()?;
+
+    let mut core = CoreState {
         no_transform: <Matrix4<f32> as SquareMatrix>::identity(),
         no_movement: Vector3::zero(),
-        scroll: 0i32,
         pressed_keys: PressedKeys::new(),
         focus_update: None,
         focused: true,
         exit: false,
-        gfx_thread: gfx_thread,
+        scroll: 0i32,
+        gfx: gfx.clone(),
+        gfx_thread: GfxThread::new(gfx.clone()),
+        events: events,
     };
 
-    // let mut scene: Scene<GameState> = Scene::new(gs);
+    let target_sleep = Duration::from_millis(10);
+    let mut sleep = target_sleep;
 
-    camera.setup_scheduler(&mut scheduler);
-    player.setup_scheduler(&mut scheduler);
+    core.gfx_thread.start();
 
-    scheduler.on_every_tick(Box::new(|_, mut gs| {
-        if let Some(state) = gs.focus_update.take() {
-            gs.gfx_thread.enabled(state)?;
-            gs.focused = state;
-        }
+    let core = Rc::new(RefCell::new(core));
 
-        Ok(())
-    }));
+    {
+        let mut scene = setup_scene();
 
-    loop {
-        if gs.gfx_thread.errored() {
-            error!("exiting due to error in gfx thread");
-            break;
-        }
+        scene.scheduler.on_every_tick(Box::new(|_, gs| {
+            let mut core = gs.core.try_borrow_mut()?;
 
-        shuteye::sleep(sleep);
+            if let Some(state) = core.focus_update.take() {
+                core.gfx_thread.enabled(state)?;
+                core.focused = state;
+            }
 
-        let before = Instant::now();
+            Ok(())
+        }));
 
-        gs.update_pressed_keys(&mut events);
+        scene.scheduler.on_every_tick(Box::new(|_, gs| {
+            gs.core.try_borrow_mut()?.update_pressed_keys();
+            Ok(())
+        }));
 
-        scheduler.tick(&mut gs)?;
+        scene.setup(gfx.as_mut())?;
 
-        let elapsed = before.elapsed();
+        loop {
+            if core.try_borrow()?.gfx_thread.errored() {
+                error!("exiting due to error in gfx thread");
+                break;
+            }
 
-        if let Some(s) = target_sleep.checked_sub(elapsed) {
-            sleep = s;
-        } else {
-            warn!(
-                "frame took longer ({:?}) than the desired frame length ({:?}) to execute",
-                elapsed,
-                target_sleep
-            );
-        }
+            shuteye::sleep(sleep);
 
-        if gs.exit {
-            break;
+            let before = Instant::now();
+
+            scene.tick(core.clone())?;
+
+            let elapsed = before.elapsed();
+
+            if let Some(s) = target_sleep.checked_sub(elapsed) {
+                sleep = s;
+            } else {
+                warn!(
+                    "frame took longer ({:?}) than the desired frame length ({:?}) to execute",
+                    elapsed,
+                    target_sleep
+                );
+            }
+
+            if core.try_borrow()?.exit {
+                break;
+            }
         }
     }
 
-    gs.gfx_thread.stop()?;
+    core.try_borrow_mut()?.gfx_thread.stop()?;
     Ok(())
 }
 

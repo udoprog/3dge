@@ -1,7 +1,6 @@
 use super::errors::*;
 use super::fps_counter::FpsCounter;
 use gfx::Gfx;
-use gfx::camera_geometry::CameraGeometry;
 use std::sync::{Arc, Condvar, Mutex};
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;

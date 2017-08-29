@@ -11,7 +11,7 @@ use std::sync::{Arc, RwLock};
 /// Trait for a scroll provider.
 pub trait CameraScroll {
     /// Take the current accumulated scroll value.
-    fn take_scroll(&mut self) -> i32;
+    fn take_scroll(&mut self) -> Result<i32>;
 }
 
 /// A camera that always looks at a piece of geometry.
@@ -41,7 +41,7 @@ impl<S: CameraScroll> SchedulerSetup<S> for Arc<RwLock<Camera>> {
         let camera = self.clone();
 
         scheduler.on_every_tick(Box::new(move |_, s| {
-            let scroll = s.take_scroll();
+            let scroll = s.take_scroll()?;
 
             if scroll != 0 {
                 let mut camera = camera.write().map_err(|_| ErrorKind::PoisonError)?;

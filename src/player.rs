@@ -1,3 +1,4 @@
+use super::errors::*;
 use super::scheduler::{Scheduler, SchedulerSetup};
 use cgmath::{Matrix4, Point3};
 use cgmath::prelude::*;
@@ -95,7 +96,7 @@ impl Geometry for Arc<RwLock<PlayerGeometry>> {
 }
 
 pub trait PlayerTransform {
-    fn player_transform(&mut self) -> Option<Matrix4<f32>>;
+    fn player_transform(&mut self) -> Result<Option<Matrix4<f32>>>;
 }
 
 impl<S: PlayerTransform> SchedulerSetup<S> for Player {
@@ -104,7 +105,7 @@ impl<S: PlayerTransform> SchedulerSetup<S> for Player {
 
         scheduler.on_every_tick(Box::new(move |_, gs| {
             // perform player transform based on pressed keys
-            if let Some(transform) = gs.player_transform() {
+            if let Some(transform) = gs.player_transform()? {
                 let mut g = geometry.write().map_err(|_| gfx::Error::PoisonError)?;
                 g.location = transform.transform_point(g.location);
             }
