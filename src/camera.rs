@@ -1,3 +1,5 @@
+use super::errors::*;
+use super::scheduler::{Scheduler, SchedulerSetup};
 use cgmath::{Matrix4, Point3, Vector3};
 use gfx::camera_geometry::CameraGeometry;
 use gfx::camera_object::CameraObject;
@@ -5,6 +7,12 @@ use gfx::errors as gfx;
 use gfx::geometry::Geometry;
 use gfx::geometry_object::GeometryObject;
 use std::sync::{Arc, RwLock};
+
+/// Trait for a scroll provider.
+pub trait CameraScroll {
+    /// Take the current accumulated scroll value.
+    fn take_scroll(&mut self) -> i32;
+}
 
 /// A camera that always looks at a piece of geometry.
 pub struct Camera {
@@ -25,6 +33,24 @@ impl Camera {
     pub fn modify_zoom(&mut self, zoom: f32) {
         let new_zoom = self.zoom + zoom;
         self.zoom = f32::min(0.9, f32::max(0.0, new_zoom));
+    }
+}
+
+impl<S: CameraScroll> SchedulerSetup<S> for Arc<RwLock<Camera>> {
+    fn setup_scheduler(&mut self, scheduler: &mut Scheduler<S>) {
+        let camera = self.clone();
+
+        scheduler.on_every_tick(Box::new(move |_, s| {
+            let scroll = s.take_scroll();
+
+            if scroll != 0 {
+                let mut camera = camera.write().map_err(|_| ErrorKind::PoisonError)?;
+                let amount = (-scroll as f32) * 0.005;
+                camera.modify_zoom(amount);
+            }
+
+            Ok(())
+        }));
     }
 }
 

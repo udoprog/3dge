@@ -1,3 +1,4 @@
+use super::scheduler::{Scheduler, SchedulerSetup};
 use cgmath::{Matrix4, Point3};
 use cgmath::prelude::*;
 use gfx::Vertex;
@@ -90,5 +91,25 @@ impl Geometry for Arc<RwLock<PlayerGeometry>> {
         });
 
         Ok(vertices)
+    }
+}
+
+pub trait PlayerTransform {
+    fn player_transform(&mut self) -> Option<Matrix4<f32>>;
+}
+
+impl<S: PlayerTransform> SchedulerSetup<S> for Player {
+    fn setup_scheduler(&mut self, scheduler: &mut Scheduler<S>) {
+        let geometry = self.geometry.clone();
+
+        scheduler.on_every_tick(Box::new(move |_, gs| {
+            // perform player transform based on pressed keys
+            if let Some(transform) = gs.player_transform() {
+                let mut g = geometry.write().map_err(|_| gfx::Error::PoisonError)?;
+                g.location = transform.transform_point(g.location);
+            }
+
+            Ok(())
+        }));
     }
 }

@@ -5,6 +5,21 @@ use std::mem;
 /// Every callback gets exclusive access to the scheduler, permitting them to modify subsequent scheduling.
 pub type CallbackFn<S> = Fn(&mut SelfScheduler<S>, &mut S) -> Result<()>;
 
+pub trait SchedulerSetup<S> {
+    fn setup_scheduler(&mut self, &mut Scheduler<S>);
+}
+
+pub trait SelfScheduler<S> {
+    /// Run the given task at the given tick offset.
+    fn run_at(&mut self, tick_offset: u32, callback: Box<CallbackFn<S>>);
+
+    /// Run on every tick, from now until eternity.
+    fn on_every_tick(&mut self, callback: Box<CallbackFn<S>>);
+
+    /// Re-schedule self.
+    fn run_self_at(&mut self, tick_offset: u32);
+}
+
 enum Task<S> {
     RunAt {
         tick_offset: u32,
@@ -96,17 +111,6 @@ impl<S> Scheduler<S> {
     pub fn on_every_tick(&mut self, callback: Box<CallbackFn<S>>) {
         self.on_every_tick.push(callback);
     }
-}
-
-pub trait SelfScheduler<S> {
-    /// Run the given task at the given tick offset.
-    fn run_at(&mut self, tick_offset: u32, callback: Box<CallbackFn<S>>);
-
-    /// Run on every tick, from now until eternity.
-    fn on_every_tick(&mut self, callback: Box<CallbackFn<S>>);
-
-    /// Re-schedule self.
-    fn run_self_at(&mut self, tick_offset: u32);
 }
 
 impl<'a, S> SelfScheduler<S> for (&'a mut Vec<Task<S>>, Option<SelfTask>) {

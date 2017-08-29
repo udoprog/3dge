@@ -8,22 +8,21 @@ extern crate shuteye;
 
 use cgmath::{Matrix4, Point3, SquareMatrix, Vector3};
 use cgmath::prelude::*;
-use std::fs::File;
+use std::mem;
 
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use std::time::Instant;
-use threedge::camera::Camera;
+use threedge::camera::{Camera, CameraScroll};
 use threedge::errors::*;
 use threedge::events::winit::WinitEvents;
 use threedge::gfx::color::Color;
 use threedge::gfx::rectangle::Rectangle;
 use threedge::gfx_thread::GfxThread;
-use threedge::model::Model;
-use threedge::player::Player;
+use threedge::player::{Player, PlayerTransform};
 use threedge::pressed_keys::{Key, PressedKeys};
 use threedge::scene::{Scene, SceneObject};
-use threedge::scheduler::{Scheduler, SelfScheduler};
+use threedge::scheduler::{Scheduler, SchedulerSetup, SelfScheduler};
 use threedge::texture::builtin as builtin_texture;
 
 struct GameState {
@@ -32,12 +31,8 @@ struct GameState {
     no_movement: Vector3<f32>,
     /// Amount of recorded scrolling between frames.
     scroll: i32,
-    /// Game camera.
-    camera: Arc<RwLock<Camera>>,
     /// The state of all pressed keys.
     pressed_keys: PressedKeys,
-    /// The player.
-    player: Player,
     /// If focusing should be updated.
     focus_update: Option<bool>,
     /// If the game is focused.
@@ -162,30 +157,42 @@ impl GameState {
             }
         }
     }
+}
 
+impl CameraScroll for GameState {
+    fn take_scroll(&mut self) -> i32 {
+        if self.scroll != 0 {
+            return mem::replace(&mut self.scroll, 0);
+        }
+
+        0
+    }
+}
+
+impl PlayerTransform for GameState {
     /// Build player transform for a given frame.
-    fn player_transform(&self, keys: &PressedKeys) -> Option<Matrix4<f32>> {
+    fn player_transform(&mut self) -> Option<Matrix4<f32>> {
         let mut translation = None;
 
-        if keys.test(Key::MoveLeft) {
+        if self.pressed_keys.test(Key::MoveLeft) {
             translation = Some(
                 translation.unwrap_or(self.no_movement) + Vector3::new(-0.02, 0.0, 0.0),
             );
         }
 
-        if keys.test(Key::MoveRight) {
+        if self.pressed_keys.test(Key::MoveRight) {
             translation = Some(
                 translation.unwrap_or(self.no_movement) + Vector3::new(0.02, 0.0, 0.0),
             );
         }
 
-        if keys.test(Key::MoveUp) {
+        if self.pressed_keys.test(Key::MoveUp) {
             translation = Some(
                 translation.unwrap_or(self.no_movement) + Vector3::new(0.0, -0.02, 0.0),
             );
         }
 
-        if keys.test(Key::MoveDown) {
+        if self.pressed_keys.test(Key::MoveDown) {
             translation = Some(
                 translation.unwrap_or(self.no_movement) + Vector3::new(0.0, 0.02, 0.0),
             );
@@ -212,8 +219,8 @@ fn entry() -> Result<()> {
     let mut events = WinitEvents::new()?;
     let mut gfx = events.setup_gfx()?;
 
-    let player = Player::new();
-    let camera = Arc::new(RwLock::new(Camera::new(&player)));
+    let mut player = Player::new();
+    let mut camera = Arc::new(RwLock::new(Camera::new(&player)));
 
     let color1 = Color::from_rgb(0.0, 0.0, 1.0);
 
@@ -240,40 +247,17 @@ fn entry() -> Result<()> {
         no_transform: <Matrix4<f32> as SquareMatrix>::identity(),
         no_movement: Vector3::zero(),
         scroll: 0i32,
-        camera: camera.clone(),
         pressed_keys: PressedKeys::new(),
-        player: player,
         focus_update: None,
         focused: true,
         exit: false,
         gfx_thread: gfx_thread,
     };
 
-    // let mut scene: Scene<GameState> = Scene::new(gs, gfx);
+    // let mut scene: Scene<GameState> = Scene::new(gs);
 
-    scheduler.on_every_tick(Box::new(move |_, gs| {
-        if gs.scroll != 0 {
-            let mut camera = gs.camera.write().map_err(|_| ErrorKind::PoisonError)?;
-
-            let amount = (-gs.scroll as f32) * 0.005;
-
-            camera.modify_zoom(amount);
-
-            // reset accumulated scroll amount
-            gs.scroll = 0i32;
-        }
-
-        Ok(())
-    }));
-
-    scheduler.on_every_tick(Box::new(|_, gs| {
-        // perform player transform based on pressed keys
-        if let Some(transform) = gs.player_transform(&gs.pressed_keys) {
-            gs.player.transform(&transform)?;
-        }
-
-        Ok(())
-    }));
+    camera.setup_scheduler(&mut scheduler);
+    player.setup_scheduler(&mut scheduler);
 
     scheduler.on_every_tick(Box::new(|_, mut gs| {
         if let Some(state) = gs.focus_update.take() {
