@@ -1,6 +1,6 @@
 use super::errors::*;
 use super::fps_counter::FpsCounter;
-use gfx::Gfx;
+use gfx::GfxLoopBuilder;
 use std::sync::{Arc, Condvar, Mutex};
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
@@ -10,17 +10,15 @@ pub struct GfxThread {
     stopped: Arc<AtomicBool>,
     errored: Arc<AtomicBool>,
     enabled: Arc<(Mutex<bool>, Condvar)>,
-    gfx: Box<Gfx>,
     handle: Option<thread::JoinHandle<Result<()>>>,
 }
 
 impl GfxThread {
-    pub fn new(gfx: Box<Gfx>) -> GfxThread {
+    pub fn new() -> GfxThread {
         GfxThread {
             stopped: Arc::new(AtomicBool::new(false)),
             errored: Arc::new(AtomicBool::new(false)),
             enabled: Arc::new((Mutex::new(false), Condvar::new())),
-            gfx: gfx,
             handle: None,
         }
     }
@@ -55,21 +53,20 @@ impl GfxThread {
         Ok(())
     }
 
-    pub fn start(&mut self) -> Result<()> {
-        let gfx = self.gfx.clone();
+    pub fn start(&mut self, gfx_loop_builder: Box<GfxLoopBuilder>) -> Result<()> {
         let errored = self.errored.clone();
         let stopped = self.stopped.clone();
         let enabled = self.enabled.clone();
 
         self.handle = Some(thread::spawn(move || {
+            let mut gfx_loop = gfx_loop_builder.into_loop()?;
+
             let mut fps_counter = FpsCounter::new(|fps| {
                 info!("fps = {}", fps);
                 Ok(())
             });
 
             let (ref enabled_mutex, ref enabled_cond) = *enabled;
-
-            let mut gfx_loop = gfx.new_loop()?;
 
             while !stopped.load(Ordering::Relaxed) {
                 {

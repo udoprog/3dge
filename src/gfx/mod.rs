@@ -37,9 +37,6 @@ pub trait Gfx: marker::Sync + marker::Send {
     /// Register a new piece of geometry that should be rendered.
     fn register_geometry(&mut self, geometry_object: &GeometryObject) -> Result<()>;
 
-    /// Create a new loop.
-    fn new_loop(&self) -> Result<Box<GfxLoop>>;
-
     /// Clone the current gfx handle.
     fn clone_boxed(&self) -> Box<Gfx>;
 }
@@ -48,6 +45,11 @@ impl Clone for Box<Gfx> {
     fn clone(&self) -> Self {
         self.clone_boxed()
     }
+}
+
+pub trait GfxLoopBuilder: marker::Sync + marker::Send {
+    /// Build loop.
+    fn into_loop(&self) -> Result<Box<GfxLoop>>;
 }
 
 pub trait GfxLoop {

@@ -1,7 +1,6 @@
 use super::Vertex;
 use super::errors::*;
 use cgmath::{Matrix4, Point3};
-use std::sync::{Arc, RwLock};
 
 /// Describes the geomtry of some object on screen.
 ///

@@ -26,11 +26,11 @@ impl Model {
         let gltf = Gltf::from_reader(BufReader::new(reader))?
             .validate_minimally()?;
 
-        let mut mesh = Vec::new();
+        let mesh = Vec::new();
 
         // TODO: actually do the conversion and only support one mesh.
         for m in gltf.meshes() {
-            for p in m.primitives() {}
+            for _ in m.primitives() {}
         }
 
         let model = Model {

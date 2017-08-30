@@ -21,6 +21,7 @@ use vulkano::image::SwapchainImage;
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::swapchain::{self, AcquireError, Swapchain};
 use vulkano::sync::GpuFuture;
+use vulkano::sync::now;
 
 pub type SyncDescriptorSet = DescriptorSet + Send + ::std::marker::Sync;
 
@@ -32,12 +33,15 @@ pub struct VulkanGfxLoop {
     queue: Arc<Queue>,
     window: Arc<Box<VulkanWindow>>,
     dimensions: [u32; 2],
-    recreate_swapchain: bool,
-    previous_frame_end: Option<Box<GpuFuture>>,
     framebuffers: Option<Vec<Arc<Fb>>>,
     render_pass: Arc<Rp>,
     pipeline: Arc<Pl>,
     geometry: Arc<RwLock<GeometryData>>,
+    /// if the swapchain needs to be re-created.
+    recreate_swapchain: bool,
+    /// future associated with the previous frame.
+    /// use for synchronizing rendering of subsequent frames.
+    previous_frame_end: Option<Box<GpuFuture>>,
 }
 
 impl VulkanGfxLoop {
@@ -49,8 +53,6 @@ impl VulkanGfxLoop {
         queue: Arc<Queue>,
         window: Arc<Box<VulkanWindow>>,
         dimensions: [u32; 2],
-        recreate_swapchain: bool,
-        previous_frame_end: Option<Box<GpuFuture>>,
         framebuffers: Option<Vec<Arc<Fb>>>,
         render_pass: Arc<Rp>,
         pipeline: Arc<Pl>,
@@ -58,18 +60,18 @@ impl VulkanGfxLoop {
     ) -> VulkanGfxLoop {
         VulkanGfxLoop {
             camera: camera,
-            device: device,
+            device: device.clone(),
             swapchain: swapchain,
             images: images,
             queue: queue,
             window: window,
             dimensions: dimensions,
-            recreate_swapchain: recreate_swapchain,
-            previous_frame_end: previous_frame_end,
             framebuffers: framebuffers,
             render_pass: render_pass,
             pipeline: pipeline,
             geometry: geometry,
+            recreate_swapchain: false,
+            previous_frame_end: Some(Box::new(now(device.clone()))),
         }
     }
 

@@ -6,6 +6,7 @@ pub mod vulkan_window;
 mod vulkan_plane;
 mod vulkan_gfx_instance;
 mod vulkan_gfx_loop;
+mod vulkan_gfx_loop_builder;
 mod vulkan_gfx;
 mod geometry_data;
 mod geometry_entry;

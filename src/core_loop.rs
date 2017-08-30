@@ -8,7 +8,7 @@ use super::pressed_keys::PressedKeys;
 use super::scheduler::Scheduler;
 use cgmath::{Matrix4, SquareMatrix, Vector3};
 use cgmath::prelude::*;
-use gfx::Gfx;
+use gfx::{Gfx, GfxLoopBuilder};
 use shuteye;
 use std::cell::RefCell;
 use std::ops::DerefMut;
@@ -18,6 +18,7 @@ use std::time::Instant;
 
 pub struct CoreLoop {
     gfx: Box<Gfx>,
+    gfx_loop_builder: Box<GfxLoopBuilder>,
     core: Rc<RefCell<CoreState>>,
     core_scheduler: Scheduler<Rc<RefCell<CoreState>>>,
     scene: Option<Box<BoxedScene<CoreState>>>,
@@ -26,10 +27,11 @@ pub struct CoreLoop {
 impl CoreLoop {
     pub fn new() -> Result<CoreLoop> {
         let events = WinitEvents::new()?;
-        let gfx = events.setup_gfx()?;
+        let (gfx, gfx_loop_builder) = events.setup_gfx()?;
 
         Ok(CoreLoop {
             gfx: gfx.clone(),
+            gfx_loop_builder: gfx_loop_builder,
             core: Rc::new(RefCell::new(CoreState {
                 no_transform: <Matrix4<f32> as SquareMatrix>::identity(),
                 no_movement: Vector3::zero(),
@@ -39,7 +41,7 @@ impl CoreLoop {
                 exit: false,
                 scroll: 0i32,
                 gfx: gfx.clone(),
-                gfx_thread: GfxThread::new(gfx.clone()),
+                gfx_thread: GfxThread::new(),
                 events: events,
             })),
             core_scheduler: Scheduler::new(),
@@ -54,7 +56,11 @@ impl CoreLoop {
     }
 
     pub fn run(mut self) -> Result<()> {
-        self.core.try_borrow_mut()?.deref_mut().gfx_thread.start()?;
+        let gfx_loop_builder = self.gfx_loop_builder;
+
+        self.core.try_borrow_mut()?.deref_mut().gfx_thread.start(
+            gfx_loop_builder,
+        )?;
 
         self.core_scheduler.on_every_tick(Box::new(|_, core| {
             let mut core = core.try_borrow_mut()?;
