@@ -21,6 +21,8 @@ extern crate cgmath;
 extern crate bit_vec;
 extern crate image;
 extern crate gltf;
+extern crate gltf_utils;
+extern crate gltf_importer;
 extern crate shuteye;
 
 pub mod events;

@@ -4,6 +4,7 @@ use texture::errors as texture;
 
 error_chain! {
     foreign_links {
+        GltfImporter(::gltf_importer::Error);
         BorrowMutError(::std::cell::BorrowMutError);
         BorrowError(::std::cell::BorrowError);
         IoError(::std::io::Error);
@@ -18,6 +19,15 @@ error_chain! {
     }
 
     errors {
+        NoMesh {
+        }
+
+        NoPrimitive {
+        }
+
+        NoIndices {
+        }
+
         ThreadJoin {
         }
 

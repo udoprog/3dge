@@ -1,41 +1,17 @@
-use gfx::Window;
 use gfx::camera_object::CameraObject;
 use gfx::command::Command;
 use gfx::errors::*;
 use gfx::geometry_object::GeometryObject;
-use std::sync::Arc;
 use std::sync::mpsc;
-use vulkano::device::{Device, Queue};
-use vulkano::image::SwapchainImage;
-use vulkano::swapchain::Swapchain;
 
 #[derive(Clone)]
 pub struct VulkanGfx {
     send: mpsc::Sender<Command>,
-    device: Arc<Device>,
-    window: Arc<Window>,
-    swapchain: Arc<Swapchain>,
-    images: Vec<Arc<SwapchainImage>>,
-    queue: Arc<Queue>,
 }
 
 impl VulkanGfx {
-    pub fn new(
-        send: mpsc::Sender<Command>,
-        device: Arc<Device>,
-        window: Arc<Window>,
-        swapchain: Arc<Swapchain>,
-        images: Vec<Arc<SwapchainImage>>,
-        queue: Arc<Queue>,
-    ) -> VulkanGfx {
-        VulkanGfx {
-            send: send,
-            device: device,
-            window: window,
-            swapchain: swapchain,
-            images: images,
-            queue: queue,
-        }
+    pub fn new(send: mpsc::Sender<Command>) -> VulkanGfx {
+        VulkanGfx { send: send }
     }
 
     pub fn clear(&self) -> Result<()> {

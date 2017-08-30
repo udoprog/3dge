@@ -1,24 +1,28 @@
 use super::errors::*;
+use super::model::ModelGeometry;
 use super::scheduler::{Scheduler, SchedulerSetup};
 use cgmath::{Matrix4, Point3};
 use cgmath::prelude::*;
-use gfx::{GeometryId, Vertex};
+use gfx::GeometryId;
 use gfx::errors as gfx;
 use gfx::geometry::{Geometry, GeometryAccessor};
 use gfx::geometry_object::GeometryObject;
+use gfx::vertices::Vertices;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 
 #[derive(Debug)]
 pub struct PlayerGeometry {
     id: GeometryId,
     location: Point3<f32>,
+    model: ModelGeometry,
 }
 
 impl PlayerGeometry {
-    pub fn new() -> PlayerGeometry {
+    pub fn new(model: ModelGeometry) -> PlayerGeometry {
         PlayerGeometry {
             id: GeometryId::allocate(),
             location: Point3::new(0.0, 0.0, 0.0),
+            model: model,
         }
     }
 }
@@ -28,8 +32,8 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new() -> Player {
-        Player { geometry: Arc::new(RwLock::new(PlayerGeometry::new())) }
+    pub fn new(model: ModelGeometry) -> Player {
+        Player { geometry: Arc::new(RwLock::new(PlayerGeometry::new(model))) }
     }
 
     pub fn transform(&mut self, transform: &Matrix4<f32>) -> gfx::Result<()> {
@@ -76,43 +80,12 @@ impl<'a> GeometryAccessor for RwLockReadGuard<'a, PlayerGeometry> {
         Ok(self.location)
     }
 
-    fn vertices(&self) -> gfx::Result<Vec<Vertex>> {
-        let mut vertices = Vec::new();
-
-        let red = [1.0, 0.0, 0.0];
-        let green = [0.0, 1.0, 0.0];
-
-        vertices.push(Vertex {
-            position: [-0.1, -0.1, 0.0],
-            color: red,
-        });
-
-        vertices.push(Vertex {
-            position: [0.1, -0.1, 0.0],
-            color: red,
-        });
-
-        vertices.push(Vertex {
-            position: [0.1, 0.1, 0.0],
-            color: red,
-        });
-
-        vertices.push(Vertex {
-            position: [-0.1, -0.1, 0.0],
-            color: green,
-        });
-
-        vertices.push(Vertex {
-            position: [0.1, 0.1, 0.0],
-            color: green,
-        });
-
-        vertices.push(Vertex {
-            position: [-0.1, 0.1, 0.0],
-            color: green,
-        });
-
-        Ok(vertices)
+    fn vertices(&self) -> gfx::Result<Vertices> {
+        Ok(Vertices::new(
+            self.model.mesh.clone(),
+            self.model.normals.clone(),
+            self.model.indices.clone(),
+        ))
     }
 }
 

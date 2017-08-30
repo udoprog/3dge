@@ -58,17 +58,21 @@ impl GfxThread {
         let stopped = self.stopped.clone();
         let enabled = self.enabled.clone();
 
-        self.handle = Some(thread::spawn(move || {
-            let mut gfx_loop = gfx_loop_builder.into_loop()?;
+        let builder = thread::Builder::new().name(String::from("gfx"));
+
+        self.handle = Some(builder.spawn(move || {
+            let gfx_loop = gfx_loop_builder.into_loop()?;
 
             let mut fps_counter = FpsCounter::new(|fps| {
                 info!("fps = {}", fps);
                 Ok(())
             });
 
-            let (ref enabled_mutex, ref enabled_cond) = *enabled;
+            let mut ticker = gfx_loop.into_ticker()?;
 
             while !stopped.load(Ordering::Relaxed) {
+                let (ref enabled_mutex, ref enabled_cond) = *enabled;
+
                 {
                     let mut guard = enabled_mutex.lock().map_err(|_| ErrorKind::PoisonError)?;
 
@@ -81,7 +85,7 @@ impl GfxThread {
                     }
                 }
 
-                if let Err(e) = gfx_loop.tick() {
+                if let Err(e) = ticker.tick() {
                     error!("error in gfx thread: {:?}", e);
                     errored.store(true, Ordering::Relaxed);
                     return Err(e.into());
@@ -91,7 +95,7 @@ impl GfxThread {
             }
 
             Ok(())
-        }));
+        })?);
 
         Ok(())
     }

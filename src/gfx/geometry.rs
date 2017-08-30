@@ -1,6 +1,6 @@
+use super::vertices::Vertices;
 use cgmath::{Matrix4, Point3};
 use gfx::GeometryId;
-use gfx::Vertex;
 use gfx::errors::*;
 use std::fmt;
 
@@ -34,5 +34,5 @@ pub trait GeometryAccessor {
     fn position(&self) -> Result<Point3<f32>>;
 
     /// Get all vertices associated with the geometry.
-    fn vertices(&self) -> Result<Vec<Vertex>>;
+    fn vertices(&self) -> Result<Vertices>;
 }
