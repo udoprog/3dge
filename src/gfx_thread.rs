@@ -55,7 +55,7 @@ impl GfxThread {
         Ok(())
     }
 
-    pub fn start(&mut self) {
+    pub fn start(&mut self) -> Result<()> {
         let gfx = self.gfx.clone();
         let errored = self.errored.clone();
         let stopped = self.stopped.clone();
@@ -95,5 +95,7 @@ impl GfxThread {
 
             Ok(())
         }));
+
+        Ok(())
     }
 }

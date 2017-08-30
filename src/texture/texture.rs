@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub struct Texture {
     image_data: Vec<u8>,
 }

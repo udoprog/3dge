@@ -1,5 +1,7 @@
+use super::boxed_scene::BoxedScene;
 use super::camera::{Camera, CameraScroll};
 use super::errors::*;
+use super::into_boxed_scene::IntoBoxedScene;
 use super::player::{Player, PlayerTransform};
 use super::scheduler::{Scheduler, SchedulerSetup};
 use cgmath::Matrix4;
@@ -21,24 +23,15 @@ pub struct Scene<C, S> {
     pub scheduler: Scheduler<SceneState<C, S>>,
 }
 
-pub enum SceneObject {
-    Player(Player),
-    Camera(Arc<RwLock<Camera>>),
-    Static(Box<GeometryObject>),
+impl<C: 'static + CameraScroll + PlayerTransform, S: 'static> IntoBoxedScene<C> for Scene<C, S> {
+    fn into_boxed_scene(mut self, mut gfx: Box<Gfx>) -> Result<Box<BoxedScene<C>>> {
+        self.setup(gfx.as_mut())?;
+        Ok(Box::new(self))
+    }
 }
 
-
-impl<C: CameraScroll + PlayerTransform, S> Scene<C, S> {
-    /// Create a new, empty scene.
-    pub fn new(state: S) -> Scene<C, S> {
-        Scene {
-            state: Rc::new(RefCell::new(state)),
-            objects: Vec::new(),
-            scheduler: Scheduler::new(),
-        }
-    }
-
-    pub fn tick(&mut self, core: Rc<RefCell<C>>) -> Result<()> {
+impl<C, S> BoxedScene<C> for Scene<C, S> {
+    fn tick(&mut self, core: Rc<RefCell<C>>) -> Result<()> {
         let mut scheduler = &mut self.scheduler;
 
         {
@@ -51,6 +44,24 @@ impl<C: CameraScroll + PlayerTransform, S> Scene<C, S> {
         }
 
         Ok(())
+    }
+}
+
+pub enum SceneObject {
+    Player(Player),
+    Camera(Arc<RwLock<Camera>>),
+    Static(Box<GeometryObject>),
+}
+
+
+impl<C: 'static + CameraScroll + PlayerTransform, S: 'static> Scene<C, S> {
+    /// Create a new, empty scene.
+    pub fn new(state: S) -> Scene<C, S> {
+        Scene {
+            state: Rc::new(RefCell::new(state)),
+            objects: Vec::new(),
+            scheduler: Scheduler::new(),
+        }
     }
 
     /// Register the given scene object.

@@ -18,6 +18,7 @@ extern crate cgmath;
 extern crate bit_vec;
 extern crate image;
 extern crate gltf;
+extern crate shuteye;
 
 pub mod events;
 pub mod errors;
@@ -32,3 +33,7 @@ pub mod gfx_thread;
 pub mod model;
 pub mod scheduler;
 pub mod scene;
+pub mod boxed_scene;
+pub mod into_boxed_scene;
+pub mod core_loop;
+pub mod core_state;
