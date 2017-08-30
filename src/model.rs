@@ -1,7 +1,7 @@
 use super::errors::*;
 use cgmath::{Matrix4, Point3};
 use cgmath::prelude::*;
-use gfx::Vertex;
+use gfx::{GeometryId, Vertex};
 use gfx::errors as gfx;
 use gfx::geometry::{Geometry, GeometryAccessor};
 use gfx::geometry_object::GeometryObject;
@@ -9,7 +9,9 @@ use gltf::Gltf;
 use std::io::{BufReader, Read};
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 
+#[derive(Debug)]
 pub struct ModelGeometry {
+    id: GeometryId,
     location: Point3<f32>,
     mesh: Vec<Vertex>,
 }
@@ -35,6 +37,7 @@ impl Model {
 
         let model = Model {
             geometry: Arc::new(RwLock::new(ModelGeometry {
+                id: GeometryId::allocate(),
                 location: Point3::new(0.0, 0.0, 0.0),
                 mesh: mesh,
             })),
@@ -72,6 +75,10 @@ impl Geometry for Arc<RwLock<ModelGeometry>> {
 }
 
 impl<'a> GeometryAccessor for RwLockReadGuard<'a, ModelGeometry> {
+    fn id(&self) -> GeometryId {
+        self.id
+    }
+
     fn transformation(&self) -> gfx::Result<Matrix4<f32>> {
         Ok(Matrix4::from_translation(self.location.to_vec()))
     }

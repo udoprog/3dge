@@ -2,19 +2,24 @@ use super::errors::*;
 use super::scheduler::{Scheduler, SchedulerSetup};
 use cgmath::{Matrix4, Point3};
 use cgmath::prelude::*;
-use gfx::Vertex;
+use gfx::{GeometryId, Vertex};
 use gfx::errors as gfx;
 use gfx::geometry::{Geometry, GeometryAccessor};
 use gfx::geometry_object::GeometryObject;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 
+#[derive(Debug)]
 pub struct PlayerGeometry {
+    id: GeometryId,
     location: Point3<f32>,
 }
 
 impl PlayerGeometry {
     pub fn new() -> PlayerGeometry {
-        PlayerGeometry { location: Point3::new(0.0, 0.0, 0.0) }
+        PlayerGeometry {
+            id: GeometryId::allocate(),
+            location: Point3::new(0.0, 0.0, 0.0),
+        }
     }
 }
 
@@ -59,6 +64,10 @@ impl Geometry for Arc<RwLock<PlayerGeometry>> {
 }
 
 impl<'a> GeometryAccessor for RwLockReadGuard<'a, PlayerGeometry> {
+    fn id(&self) -> GeometryId {
+        self.id
+    }
+
     fn transformation(&self) -> gfx::Result<Matrix4<f32>> {
         Ok(Matrix4::from_translation(self.location.to_vec()))
     }

@@ -1,4 +1,4 @@
-#[derive(Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Color {
     r: f32,
     g: f32,
@@ -16,8 +16,6 @@ impl Color {
         }
     }
 }
-
-impl Copy for Color {}
 
 impl From<Color> for [f32; 3] {
     fn from(value: Color) -> Self {

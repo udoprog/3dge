@@ -1,4 +1,3 @@
-use super::geometry_data::GeometryData;
 use super::shaders::basic::{fs, vs};
 use super::vulkan_gfx::VulkanGfx;
 use super::vulkan_gfx_loop_builder::VulkanGfxLoopBuilder;
@@ -6,7 +5,7 @@ use super::vulkano_win_window::VulkanoWinWindow;
 use gfx::Vertex;
 use gfx::Window;
 use gfx::errors::*;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::sync::mpsc;
 use vulkano::device::{self, Device};
 use vulkano::framebuffer::Subpass;
@@ -97,8 +96,6 @@ impl VulkanGfxInstance {
             )?
         };
 
-        let geometry = Arc::new(RwLock::new(GeometryData::new()));
-
         let gfx = VulkanGfx::new(
             send,
             device.clone(),
@@ -106,7 +103,6 @@ impl VulkanGfxInstance {
             swapchain.clone(),
             images.clone(),
             queue.clone(),
-            geometry.clone(),
         );
 
         let vs = vs::Shader::load(device.clone())?;
@@ -152,7 +148,6 @@ impl VulkanGfxInstance {
             None,
             render_pass,
             pipeline,
-            geometry.clone(),
         );
 
         Ok((gfx, gfx_loop_builder))

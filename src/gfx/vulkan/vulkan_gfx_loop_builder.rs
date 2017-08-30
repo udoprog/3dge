@@ -1,11 +1,10 @@
 use super::{Fb, Pl, Rp};
-use super::geometry_data::GeometryData;
 use super::vulkan_gfx_loop::VulkanGfxLoop;
 use gfx::GfxLoop;
 use gfx::Window;
 use gfx::command::Command;
 use gfx::errors::*;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::sync::mpsc;
 use vulkano::device::{Device, Queue};
 use vulkano::image::SwapchainImage;
@@ -22,7 +21,6 @@ pub struct VulkanGfxLoopBuilder {
     framebuffers: Option<Vec<Arc<Fb>>>,
     render_pass: Arc<Rp>,
     pipeline: Arc<Pl>,
-    geometry: Arc<RwLock<GeometryData>>,
 }
 
 impl VulkanGfxLoopBuilder {
@@ -37,7 +35,6 @@ impl VulkanGfxLoopBuilder {
         framebuffers: Option<Vec<Arc<Fb>>>,
         render_pass: Arc<Rp>,
         pipeline: Arc<Pl>,
-        geometry: Arc<RwLock<GeometryData>>,
     ) -> VulkanGfxLoopBuilder {
         VulkanGfxLoopBuilder {
             recv: recv,
@@ -50,7 +47,6 @@ impl VulkanGfxLoopBuilder {
             framebuffers: framebuffers,
             render_pass: render_pass,
             pipeline: pipeline,
-            geometry: geometry,
         }
     }
 
@@ -66,7 +62,6 @@ impl VulkanGfxLoopBuilder {
             self.framebuffers,
             self.render_pass,
             self.pipeline,
-            self.geometry,
         ))
     }
 }

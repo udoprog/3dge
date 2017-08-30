@@ -1,13 +1,10 @@
-use super::geometry_data::GeometryData;
-use super::geometry_entry::GeometryEntry;
 use gfx::Window;
 use gfx::camera_object::CameraObject;
 use gfx::command::Command;
 use gfx::errors::*;
 use gfx::geometry_object::GeometryObject;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::sync::mpsc;
-use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
 use vulkano::device::{Device, Queue};
 use vulkano::image::SwapchainImage;
 use vulkano::swapchain::Swapchain;
@@ -20,7 +17,6 @@ pub struct VulkanGfx {
     swapchain: Arc<Swapchain>,
     images: Vec<Arc<SwapchainImage>>,
     queue: Arc<Queue>,
-    geometry: Arc<RwLock<GeometryData>>,
 }
 
 impl VulkanGfx {
@@ -31,7 +27,6 @@ impl VulkanGfx {
         swapchain: Arc<Swapchain>,
         images: Vec<Arc<SwapchainImage>>,
         queue: Arc<Queue>,
-        geometry: Arc<RwLock<GeometryData>>,
     ) -> VulkanGfx {
         VulkanGfx {
             send: send,
@@ -40,7 +35,6 @@ impl VulkanGfx {
             swapchain: swapchain,
             images: images,
             queue: queue,
-            geometry: geometry,
         }
     }
 
@@ -48,11 +42,6 @@ impl VulkanGfx {
         self.send.send(Command::ClearCamera).map_err(
             |_| ErrorKind::SendError,
         )?;
-
-        self.geometry
-            .write()
-            .map_err(|_| ErrorKind::PoisonError)?
-            .clear();
 
         Ok(())
     }
@@ -66,21 +55,9 @@ impl VulkanGfx {
     }
 
     pub fn register_geometry(&self, geometry_object: &GeometryObject) -> Result<()> {
-        let g = geometry_object.geometry();
-
-        let buffer = CpuAccessibleBuffer::from_iter(
-            self.device.clone(),
-            BufferUsage::all(),
-            g.read_lock()?.vertices()?.iter().cloned(),
-        )?;
-
-        let entry = GeometryEntry::new(buffer, g);
-
-        self.geometry
-            .write()
-            .map_err(|_| ErrorKind::PoisonError)?
-            .push(entry);
-
+        self.send
+            .send(Command::AddGeometry(geometry_object.geometry()))
+            .map_err(|_| ErrorKind::SendError)?;
         Ok(())
     }
 }

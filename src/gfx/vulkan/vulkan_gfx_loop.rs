@@ -1,15 +1,15 @@
 use super::{Fb, Pl, Rp, UniformGlobal, UniformModel};
-use super::geometry_data::GeometryData;
+use super::geometry_entry::GeometryEntry;
 use cgmath::{Matrix4, Rad};
 use cgmath::prelude::*;
-use gfx::Vertex;
-use gfx::Window;
+use gfx::{GeometryId, Vertex, Window};
 use gfx::camera_object::CameraObject;
 use gfx::command::Command;
 use gfx::errors::*;
+use std::collections::HashMap;
 use std::f32;
 use std::mem;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::sync::mpsc;
 use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
 use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBuffer, DynamicState};
@@ -36,7 +36,8 @@ pub struct VulkanGfxLoop {
     framebuffers: Option<Vec<Arc<Fb>>>,
     render_pass: Arc<Rp>,
     pipeline: Arc<Pl>,
-    geometry: Arc<RwLock<GeometryData>>,
+    /// Current registered geometry.
+    visible: HashMap<GeometryId, GeometryEntry>,
     /// Current camera.
     camera: Option<Box<CameraObject>>,
     /// if the swapchain needs to be re-created.
@@ -58,7 +59,6 @@ impl VulkanGfxLoop {
         framebuffers: Option<Vec<Arc<Fb>>>,
         render_pass: Arc<Rp>,
         pipeline: Arc<Pl>,
-        geometry: Arc<RwLock<GeometryData>>,
     ) -> VulkanGfxLoop {
         VulkanGfxLoop {
             recv: recv,
@@ -71,7 +71,7 @@ impl VulkanGfxLoop {
             framebuffers: framebuffers,
             render_pass: render_pass,
             pipeline: pipeline,
-            geometry: geometry,
+            visible: HashMap::new(),
             camera: None,
             recreate_swapchain: false,
             previous_frame_end: Some(Box::new(now(device.clone()))),
@@ -121,12 +121,9 @@ impl VulkanGfxLoop {
     ) -> Result<Vec<(Arc<CpuAccessibleBuffer<[Vertex]>>, Arc<SyncDescriptorSet>)>> {
         let mut out: Vec<(Arc<CpuAccessibleBuffer<[Vertex]>>, Arc<SyncDescriptorSet>)> = Vec::new();
 
-        let geometry = self.geometry.read().map_err(|_| ErrorKind::PoisonError)?;
-
-        for entry in &geometry.entries {
+        for entry in self.visible.values() {
             let buffer = entry.buffer.clone();
             let geometry = entry.geometry.read_lock()?;
-
             let transformation = geometry.transformation()?;
 
             let model = UniformModel { model: transformation.into() };
@@ -147,12 +144,28 @@ impl VulkanGfxLoop {
     fn process_command(&mut self, command: Command) -> Result<()> {
         use self::Command::*;
 
+        debug!("command: {:?}", command);
+
         match command {
             ClearCamera => {
                 self.camera = None;
             }
             SetCamera(camera) => {
                 self.camera = Some(camera);
+            }
+            AddGeometry(geometry) => {
+                let g = geometry.read_lock()?;
+
+                let buffer = CpuAccessibleBuffer::from_iter(
+                    self.device.clone(),
+                    BufferUsage::all(),
+                    g.vertices()?.iter().cloned(),
+                )?;
+
+                self.visible.insert(
+                    g.id(),
+                    GeometryEntry::new(buffer, geometry.clone_geometry()),
+                );
             }
         }
 

@@ -1,13 +1,15 @@
 use cgmath::{Matrix4, Point3, Rad, Vector3};
 use cgmath::prelude::*;
-use gfx::Vertex;
+use gfx::{GeometryId, Vertex};
 use gfx::color::Color;
 use gfx::errors::*;
 use gfx::geometry::{Geometry, GeometryAccessor};
 use gfx::geometry_object::GeometryObject;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 
+#[derive(Debug)]
 pub struct RectangleGeometry {
+    id: GeometryId,
     origin: Point3<f32>,
     normal: Vector3<f32>,
     color: Color,
@@ -16,6 +18,7 @@ pub struct RectangleGeometry {
 impl RectangleGeometry {
     pub fn new(origin: Point3<f32>, normal: Vector3<f32>, color: Color) -> RectangleGeometry {
         RectangleGeometry {
+            id: GeometryId::allocate(),
             origin: origin,
             normal: normal,
             color: color,
@@ -46,6 +49,10 @@ impl Geometry for Arc<RwLock<RectangleGeometry>> {
 }
 
 impl<'a> GeometryAccessor for RwLockReadGuard<'a, RectangleGeometry> {
+    fn id(&self) -> GeometryId {
+        self.id
+    }
+
     fn transformation(&self) -> Result<Matrix4<f32>> {
         let translation = Matrix4::from_translation(self.origin.to_vec());
         let rotation = Matrix4::from_axis_angle(self.normal, Rad(0.0));

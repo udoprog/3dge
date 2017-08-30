@@ -13,6 +13,8 @@ extern crate vulkano_win;
 extern crate error_chain;
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate lazy_static;
 
 extern crate winit;
 extern crate cgmath;

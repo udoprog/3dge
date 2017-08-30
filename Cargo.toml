@@ -17,6 +17,7 @@ shuteye = "^0"
 log = "0.3"
 env_logger = "0.4"
 gltf = "0.9"
+lazy_static = "0.2"
 
 [dependencies.vulkano]
 version = "0.6"
