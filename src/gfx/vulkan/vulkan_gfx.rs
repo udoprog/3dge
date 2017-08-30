@@ -1,16 +1,12 @@
 use super::errors::*;
 use super::geometry_data::GeometryData;
 use super::geometry_entry::GeometryEntry;
-use super::vulkan_plane::VulkanPlane;
 use super::vulkan_window::VulkanWindow;
-use cgmath::{Point3, Vector3};
 use gfx::Gfx;
 use gfx::camera_geometry::CameraGeometry;
 use gfx::camera_object::CameraObject;
 use gfx::errors as gfx;
 use gfx::geometry_object::GeometryObject;
-use gfx::plane::Plane;
-use std::f32;
 use std::sync::{Arc, RwLock};
 use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
 use vulkano::device::{Device, Queue};
@@ -51,7 +47,7 @@ impl VulkanGfx {
 }
 
 impl Gfx for VulkanGfx {
-    fn clear(&mut self) -> Result<()> {
+    fn clear(&self) -> Result<()> {
         *self.camera.write().map_err(|_| gfx::Error::PoisonError)? = None;
 
         self.geometry
@@ -62,13 +58,13 @@ impl Gfx for VulkanGfx {
         Ok(())
     }
 
-    fn set_camera(&mut self, camera_object: &CameraObject) -> Result<()> {
+    fn set_camera(&self, camera_object: &CameraObject) -> Result<()> {
         let mut camera = self.camera.write().map_err(|_| gfx::Error::PoisonError)?;
         *camera = Some(camera_object.geometry());
         Ok(())
     }
 
-    fn register_geometry(&mut self, geometry_object: &GeometryObject) -> gfx::Result<()> {
+    fn register_geometry(&self, geometry_object: &GeometryObject) -> gfx::Result<()> {
         let g = geometry_object.geometry();
 
         let buffer = CpuAccessibleBuffer::from_iter(
@@ -85,10 +81,6 @@ impl Gfx for VulkanGfx {
             .push(entry);
 
         Ok(())
-    }
-
-    fn new_plane(&mut self, _origin: Point3<f32>, _up: Vector3<f32>) -> Box<Plane> {
-        Box::new(VulkanPlane::new())
     }
 
     fn clone_boxed(&self) -> Box<Gfx> {

@@ -30,7 +30,7 @@ impl VulkanGfxInstance {
     }
 
     /// Backend-specific implementation for building windows.
-    pub(crate) fn build_window(&self, events_loop: &winit::EventsLoop) -> Result<VulkanoWinWindow> {
+    pub fn build_window(&self, events_loop: &winit::EventsLoop) -> Result<VulkanoWinWindow> {
         let window = winit::WindowBuilder::new()
             .with_title("3dge")
             .build_vk_surface(events_loop, self.instance.clone())?;
@@ -38,7 +38,7 @@ impl VulkanGfxInstance {
         Ok(VulkanoWinWindow::new(window))
     }
 
-    pub(crate) fn build_gfx(
+    pub fn build_gfx(
         &self,
         window: Arc<Box<VulkanWindow>>,
     ) -> Result<(VulkanGfx, VulkanGfxLoopBuilder)> {
@@ -113,7 +113,7 @@ impl VulkanGfxInstance {
         let vs = vs::Shader::load(device.clone())?;
         let fs = fs::Shader::load(device.clone())?;
 
-        let render_pass = single_pass_renderpass!(
+        let render_pass = Arc::new(single_pass_renderpass!(
             device.clone(),
             attachments: {
                 color: {
@@ -127,9 +127,7 @@ impl VulkanGfxInstance {
                 color: [color],
                 depth_stencil: {}
             }
-        )?;
-
-        let render_pass = Arc::new(render_pass);
+        )?);
 
         let sub_pass = Subpass::from(render_pass.clone(), 0).ok_or(
             ErrorKind::NoSubpass,

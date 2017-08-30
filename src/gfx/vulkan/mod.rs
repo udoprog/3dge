@@ -3,7 +3,6 @@ mod shaders;
 mod vertex;
 mod vulkano_win_window;
 pub mod vulkan_window;
-mod vulkan_plane;
 mod vulkan_gfx_instance;
 mod vulkan_gfx_loop;
 mod vulkan_gfx_loop_builder;
