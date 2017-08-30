@@ -3,11 +3,11 @@ use cgmath::{Matrix4, Point3};
 use cgmath::prelude::*;
 use gfx::Vertex;
 use gfx::errors as gfx;
-use gfx::geometry::Geometry;
+use gfx::geometry::{Geometry, GeometryAccessor};
 use gfx::geometry_object::GeometryObject;
 use gltf::Gltf;
 use std::io::{BufReader, Read};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, RwLockReadGuard};
 
 pub struct ModelGeometry {
     location: Point3<f32>,
@@ -51,7 +51,7 @@ impl Model {
 
     /// Get the position of the player.
     pub fn position(&self) -> gfx::Result<Point3<f32>> {
-        self.geometry.position()
+        self.geometry.read_lock()?.position()
     }
 }
 
@@ -62,17 +62,21 @@ impl GeometryObject for Model {
 }
 
 impl Geometry for Arc<RwLock<ModelGeometry>> {
+    fn read_lock<'a>(&'a self) -> gfx::Result<Box<'a + GeometryAccessor>> {
+        Ok(Box::new(self.read().map_err(|_| gfx::Error::PoisonError)?))
+    }
+}
+
+impl<'a> GeometryAccessor for RwLockReadGuard<'a, ModelGeometry> {
     fn transformation(&self) -> gfx::Result<Matrix4<f32>> {
-        let g = self.read().map_err(|_| gfx::Error::PoisonError)?;
-        Ok(Matrix4::from_translation(g.location.to_vec()))
+        Ok(Matrix4::from_translation(self.location.to_vec()))
     }
 
     fn position(&self) -> gfx::Result<Point3<f32>> {
-        Ok(self.read().map_err(|_| gfx::Error::PoisonError)?.location)
+        Ok(self.location)
     }
 
     fn vertices(&self) -> gfx::Result<Vec<Vertex>> {
-        let g = self.read().map_err(|_| gfx::Error::PoisonError)?;
-        Ok(g.mesh.clone())
+        Ok(self.mesh.clone())
     }
 }

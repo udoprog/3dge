@@ -77,7 +77,7 @@ impl Gfx for VulkanGfx {
         let buffer = CpuAccessibleBuffer::from_iter(
             self.device.clone(),
             BufferUsage::all(),
-            g.vertices()?.iter().cloned(),
+            g.read_lock()?.vertices()?.iter().cloned(),
         )?;
 
         let entry = GeometryEntry::new(buffer, g);

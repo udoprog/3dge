@@ -3,9 +3,9 @@ use cgmath::prelude::*;
 use gfx::Vertex;
 use gfx::color::Color;
 use gfx::errors as gfx;
-use gfx::geometry::Geometry;
+use gfx::geometry::{Geometry, GeometryAccessor};
 use gfx::geometry_object::GeometryObject;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, RwLockReadGuard};
 
 pub struct RectangleGeometry {
     origin: Point3<f32>,
@@ -40,21 +40,24 @@ impl GeometryObject for Rectangle {
 }
 
 impl Geometry for Arc<RwLock<RectangleGeometry>> {
+    fn read_lock<'a>(&'a self) -> gfx::Result<Box<'a + GeometryAccessor>> {
+        Ok(Box::new(self.read().map_err(|_| gfx::Error::PoisonError)?))
+    }
+}
+
+impl<'a> GeometryAccessor for RwLockReadGuard<'a, RectangleGeometry> {
     fn transformation(&self) -> gfx::Result<Matrix4<f32>> {
-        let g = self.read().map_err(|_| gfx::Error::PoisonError)?;
-        let translation = Matrix4::from_translation(g.origin.to_vec());
-        let rotation = Matrix4::from_axis_angle(g.normal, Rad(0.0));
+        let translation = Matrix4::from_translation(self.origin.to_vec());
+        let rotation = Matrix4::from_axis_angle(self.normal, Rad(0.0));
         Ok(translation * rotation)
     }
 
     fn position(&self) -> gfx::Result<Point3<f32>> {
-        Ok(self.read().map_err(|_| gfx::Error::PoisonError)?.origin)
+        Ok(self.origin)
     }
 
     fn vertices(&self) -> gfx::Result<Vec<Vertex>> {
-        let g = self.read().map_err(|_| gfx::Error::PoisonError)?;
-
-        let color: [f32; 3] = g.color.into();
+        let color: [f32; 3] = self.color.into();
 
         let mut vertices = Vec::new();
 

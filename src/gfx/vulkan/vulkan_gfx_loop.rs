@@ -117,19 +117,18 @@ impl VulkanGfxLoop {
     ) -> Result<Vec<(Arc<CpuAccessibleBuffer<[Vertex]>>, Arc<SyncDescriptorSet>)>> {
         let mut out: Vec<(Arc<CpuAccessibleBuffer<[Vertex]>>, Arc<SyncDescriptorSet>)> = Vec::new();
 
-        let geometry = &self.geometry.read().map_err(|_| gfx::Error::PoisonError)?;
+        let geometry = self.geometry.read().map_err(|_| gfx::Error::PoisonError)?;
 
         for entry in &geometry.entries {
             let buffer = entry.buffer.clone();
-            let transformation = entry.geometry.transformation()?;
+            let geometry = entry.geometry.read_lock()?;
+
+            let transformation = geometry.transformation()?;
 
             let model = UniformModel { model: transformation.into() };
 
-            let uniform_buffer = CpuAccessibleBuffer::<UniformModel>::from_data(
-                self.device.clone(),
-                BufferUsage::all(),
-                model,
-            )?;
+            let uniform_buffer =
+                CpuAccessibleBuffer::from_data(self.device.clone(), BufferUsage::all(), model)?;
 
             let ds = Arc::new(PersistentDescriptorSet::start(self.pipeline.clone(), 0)
                 .add_buffer(uniform_buffer.clone())?

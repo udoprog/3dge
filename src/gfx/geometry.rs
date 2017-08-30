@@ -1,11 +1,16 @@
 use super::Vertex;
 use super::errors::*;
 use cgmath::{Matrix4, Point3};
+use std::sync::{Arc, RwLock};
 
 /// Describes the geomtry of some object on screen.
 ///
 /// Needs to be thread-safe to be read by the render thread.
 pub trait Geometry: Send + Sync {
+    fn read_lock<'a>(&'a self) -> Result<Box<'a + GeometryAccessor>>;
+}
+
+pub trait GeometryAccessor {
     /// Get the homogenous transformation matrix for this geometry.
     fn transformation(&self) -> Result<Matrix4<f32>>;
 

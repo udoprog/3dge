@@ -63,7 +63,7 @@ impl CameraObject for Arc<RwLock<Camera>> {
 impl CameraGeometry for Arc<RwLock<Camera>> {
     fn view_transformation(&self) -> gfx::Result<Matrix4<f32>> {
         let mut camera = self.write().map_err(|_| gfx::Error::PoisonError)?;
-        let player_pos = camera.player.position()?;
+        let player_pos = camera.player.read_lock()?.position()?;
 
         let mut location = camera.location;
 
