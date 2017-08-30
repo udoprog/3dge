@@ -97,12 +97,10 @@ impl VulkanGfxInstance {
             )?
         };
 
-        let camera = Arc::new(RwLock::new(None));
         let geometry = Arc::new(RwLock::new(GeometryData::new()));
 
         let gfx = VulkanGfx::new(
             send,
-            camera.clone(),
             device.clone(),
             window.clone(),
             swapchain.clone(),
@@ -145,7 +143,6 @@ impl VulkanGfxInstance {
 
         let gfx_loop_builder = VulkanGfxLoopBuilder::new(
             recv,
-            camera.clone(),
             device.clone(),
             swapchain.clone(),
             images.clone(),

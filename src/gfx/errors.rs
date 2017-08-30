@@ -33,5 +33,8 @@ error_chain! {
 
         Disconnected {
         }
+
+        SendError {
+        }
     }
 }

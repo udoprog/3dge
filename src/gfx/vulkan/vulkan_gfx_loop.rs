@@ -4,7 +4,7 @@ use cgmath::{Matrix4, Rad};
 use cgmath::prelude::*;
 use gfx::Vertex;
 use gfx::Window;
-use gfx::camera_geometry::CameraGeometry;
+use gfx::camera_object::CameraObject;
 use gfx::command::Command;
 use gfx::errors::*;
 use std::f32;
@@ -27,7 +27,6 @@ pub type SyncDescriptorSet = DescriptorSet + Send + ::std::marker::Sync;
 
 pub struct VulkanGfxLoop {
     recv: mpsc::Receiver<Command>,
-    camera: Arc<RwLock<Option<Box<CameraGeometry>>>>,
     device: Arc<Device>,
     swapchain: Arc<Swapchain>,
     images: Vec<Arc<SwapchainImage>>,
@@ -38,6 +37,8 @@ pub struct VulkanGfxLoop {
     render_pass: Arc<Rp>,
     pipeline: Arc<Pl>,
     geometry: Arc<RwLock<GeometryData>>,
+    /// Current camera.
+    camera: Option<Box<CameraObject>>,
     /// if the swapchain needs to be re-created.
     recreate_swapchain: bool,
     /// future associated with the previous frame.
@@ -48,7 +49,6 @@ pub struct VulkanGfxLoop {
 impl VulkanGfxLoop {
     pub fn new(
         recv: mpsc::Receiver<Command>,
-        camera: Arc<RwLock<Option<Box<CameraGeometry>>>>,
         device: Arc<Device>,
         swapchain: Arc<Swapchain>,
         images: Vec<Arc<SwapchainImage>>,
@@ -62,7 +62,6 @@ impl VulkanGfxLoop {
     ) -> VulkanGfxLoop {
         VulkanGfxLoop {
             recv: recv,
-            camera: camera,
             device: device.clone(),
             swapchain: swapchain,
             images: images,
@@ -73,12 +72,13 @@ impl VulkanGfxLoop {
             render_pass: render_pass,
             pipeline: pipeline,
             geometry: geometry,
+            camera: None,
             recreate_swapchain: false,
             previous_frame_end: Some(Box::new(now(device.clone()))),
         }
     }
 
-    fn create_global(&self) -> Result<Arc<SyncDescriptorSet>> {
+    fn create_global(&mut self) -> Result<Arc<SyncDescriptorSet>> {
         let projection = ::cgmath::perspective(
             Rad(f32::consts::FRAC_PI_2),
             {
@@ -89,12 +89,11 @@ impl VulkanGfxLoop {
             100.0,
         );
 
-        let view =
-            if let Some(ref camera) = *self.camera.read().map_err(|_| ErrorKind::PoisonError)? {
-                camera.view_transformation()?
-            } else {
-                <Matrix4<f32> as SquareMatrix>::identity()
-            };
+        let view = if let Some(ref mut camera) = self.camera {
+            camera.write_lock()?.view_transformation()?
+        } else {
+            <Matrix4<f32> as SquareMatrix>::identity()
+        };
 
         let scale = Matrix4::from_scale(1.0);
 
@@ -146,7 +145,17 @@ impl VulkanGfxLoop {
     }
 
     fn process_command(&mut self, command: Command) -> Result<()> {
-        println!("command: {:?}", command);
+        use self::Command::*;
+
+        match command {
+            ClearCamera => {
+                self.camera = None;
+            }
+            SetCamera(camera) => {
+                self.camera = Some(camera);
+            }
+        }
+
         Ok(())
     }
 

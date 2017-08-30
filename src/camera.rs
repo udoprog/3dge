@@ -1,12 +1,13 @@
 use super::errors::*;
 use super::scheduler::{Scheduler, SchedulerSetup};
 use cgmath::{Matrix4, Point3, Vector3};
-use gfx::camera_geometry::CameraGeometry;
+use gfx::camera_accessor::CameraAccessor;
 use gfx::camera_object::CameraObject;
 use gfx::errors as gfx;
 use gfx::geometry::Geometry;
 use gfx::geometry_object::GeometryObject;
-use std::sync::{Arc, RwLock};
+use std::fmt;
+use std::sync::{Arc, RwLock, RwLockWriteGuard};
 
 /// Trait for a scroll provider.
 pub trait CameraScroll {
@@ -36,6 +37,12 @@ impl Camera {
     }
 }
 
+impl fmt::Debug for Camera {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "Camera {{ }}")
+    }
+}
+
 impl<S: CameraScroll> SchedulerSetup<S> for Arc<RwLock<Camera>> {
     fn setup_scheduler(&mut self, scheduler: &mut Scheduler<S>) {
         let camera = self.clone();
@@ -55,28 +62,33 @@ impl<S: CameraScroll> SchedulerSetup<S> for Arc<RwLock<Camera>> {
 }
 
 impl CameraObject for Arc<RwLock<Camera>> {
-    fn geometry(&self) -> Box<CameraGeometry> {
+    fn write_lock<'a>(&'a self) -> gfx::Result<Box<'a + CameraAccessor>> {
+        Ok(Box::new(
+            self.write().map_err(|_| gfx::ErrorKind::PoisonError)?,
+        ))
+    }
+
+    fn clone_camera_object(&self) -> Box<CameraObject> {
         Box::new(self.clone())
     }
 }
 
-impl CameraGeometry for Arc<RwLock<Camera>> {
-    fn view_transformation(&self) -> gfx::Result<Matrix4<f32>> {
-        let mut camera = self.write().map_err(|_| gfx::ErrorKind::PoisonError)?;
-        let player_pos = camera.player.read_lock()?.position()?;
+impl<'a> CameraAccessor for RwLockWriteGuard<'a, Camera> {
+    fn view_transformation(&mut self) -> gfx::Result<Matrix4<f32>> {
+        let player_pos = self.player.read_lock()?.position()?;
 
-        let mut location = camera.location;
+        let mut location = self.location;
 
         // Slowly following camera, just to see some horizontal movement.
         location.x = f32::min(player_pos.x + 0.2, location.x);
         location.x = f32::max(player_pos.x - 0.2, location.x);
 
-        let inverse_zoom = 1.0 - camera.zoom;
+        let inverse_zoom = 1.0 - self.zoom;
 
         location.y = player_pos.y + 5.0 * inverse_zoom;
         location.z = 5.0 * inverse_zoom;
 
-        camera.location = location;
+        self.location = location;
 
         let look_at = Matrix4::look_at(
             /// Where the camera is.

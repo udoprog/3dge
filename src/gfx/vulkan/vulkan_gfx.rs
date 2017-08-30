@@ -1,7 +1,6 @@
 use super::geometry_data::GeometryData;
 use super::geometry_entry::GeometryEntry;
 use gfx::Window;
-use gfx::camera_geometry::CameraGeometry;
 use gfx::camera_object::CameraObject;
 use gfx::command::Command;
 use gfx::errors::*;
@@ -16,7 +15,6 @@ use vulkano::swapchain::Swapchain;
 #[derive(Clone)]
 pub struct VulkanGfx {
     send: mpsc::Sender<Command>,
-    camera: Arc<RwLock<Option<Box<CameraGeometry>>>>,
     device: Arc<Device>,
     window: Arc<Window>,
     swapchain: Arc<Swapchain>,
@@ -28,7 +26,6 @@ pub struct VulkanGfx {
 impl VulkanGfx {
     pub fn new(
         send: mpsc::Sender<Command>,
-        camera: Arc<RwLock<Option<Box<CameraGeometry>>>>,
         device: Arc<Device>,
         window: Arc<Window>,
         swapchain: Arc<Swapchain>,
@@ -38,7 +35,6 @@ impl VulkanGfx {
     ) -> VulkanGfx {
         VulkanGfx {
             send: send,
-            camera: camera,
             device: device,
             window: window,
             swapchain: swapchain,
@@ -49,7 +45,9 @@ impl VulkanGfx {
     }
 
     pub fn clear(&self) -> Result<()> {
-        *self.camera.write().map_err(|_| ErrorKind::PoisonError)? = None;
+        self.send.send(Command::ClearCamera).map_err(
+            |_| ErrorKind::SendError,
+        )?;
 
         self.geometry
             .write()
@@ -60,8 +58,10 @@ impl VulkanGfx {
     }
 
     pub fn set_camera(&self, camera_object: &CameraObject) -> Result<()> {
-        let mut camera = self.camera.write().map_err(|_| ErrorKind::PoisonError)?;
-        *camera = Some(camera_object.geometry());
+        self.send
+            .send(Command::SetCamera(camera_object.clone_camera_object()))
+            .map_err(|_| ErrorKind::SendError)?;
+
         Ok(())
     }
 

@@ -3,7 +3,6 @@ use super::geometry_data::GeometryData;
 use super::vulkan_gfx_loop::VulkanGfxLoop;
 use gfx::GfxLoop;
 use gfx::Window;
-use gfx::camera_geometry::CameraGeometry;
 use gfx::command::Command;
 use gfx::errors::*;
 use std::sync::{Arc, RwLock};
@@ -14,7 +13,6 @@ use vulkano::swapchain::Swapchain;
 
 pub struct VulkanGfxLoopBuilder {
     recv: mpsc::Receiver<Command>,
-    camera: Arc<RwLock<Option<Box<CameraGeometry>>>>,
     device: Arc<Device>,
     swapchain: Arc<Swapchain>,
     images: Vec<Arc<SwapchainImage>>,
@@ -30,7 +28,6 @@ pub struct VulkanGfxLoopBuilder {
 impl VulkanGfxLoopBuilder {
     pub fn new(
         recv: mpsc::Receiver<Command>,
-        camera: Arc<RwLock<Option<Box<CameraGeometry>>>>,
         device: Arc<Device>,
         swapchain: Arc<Swapchain>,
         images: Vec<Arc<SwapchainImage>>,
@@ -44,7 +41,6 @@ impl VulkanGfxLoopBuilder {
     ) -> VulkanGfxLoopBuilder {
         VulkanGfxLoopBuilder {
             recv: recv,
-            camera: camera,
             device: device,
             swapchain: swapchain,
             images: images,
@@ -61,7 +57,6 @@ impl VulkanGfxLoopBuilder {
     pub fn into_loop(self) -> Result<GfxLoop> {
         Ok(VulkanGfxLoop::new(
             self.recv,
-            self.camera,
             self.device,
             self.swapchain,
             self.images,
