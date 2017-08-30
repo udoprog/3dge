@@ -14,7 +14,7 @@ use std::mem;
 use std::sync::Arc;
 use std::sync::mpsc;
 use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
-use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBuffer, DynamicState};
+use vulkano::command_buffer::{AutoCommandBufferBuilder, DynamicState};
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 use vulkano::device::{Device, Queue};
 use vulkano::format::Format;
@@ -25,7 +25,7 @@ use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::vertex::TwoBuffersDefinition;
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::swapchain::{self, AcquireError, Swapchain};
-use vulkano::sync::GpuFuture;
+use vulkano::sync::{GpuFuture, now};
 
 pub struct VulkanGfxLoop {
     recv: mpsc::Receiver<Command>,
@@ -176,14 +176,13 @@ impl VulkanGfxLoop {
         let mut framebuffers = None;
         let mut dimensions = self.window.dimensions()?;
         let mut recreate_swapchain = false;
-        let mut previous_frame_end: Option<Box<GpuFuture>> = None;
+
+        let mut previous_frame = Box::new(now(self.device.clone())) as Box<GpuFuture>;
 
         loop {
             self.check_for_updates()?;
 
-            if let Some(ref mut previous_frame_end) = previous_frame_end.as_mut() {
-                previous_frame_end.cleanup_finished();
-            }
+            previous_frame.cleanup_finished();
 
             if recreate_swapchain {
                 println!("re-creating swapchain");
@@ -268,7 +267,7 @@ impl VulkanGfxLoop {
 
                 let scale = Matrix4::from_scale(1.0);
 
-                let uniform = UniformGlobal {
+                let global = UniformGlobal {
                     camera: <Matrix4<f32> as SquareMatrix>::identity().into(),
                     view: (view * scale).into(),
                     projection: projection.into(),
@@ -277,7 +276,7 @@ impl VulkanGfxLoop {
                 let uniform_buffer = CpuAccessibleBuffer::<UniformGlobal>::from_data(
                     self.device.clone(),
                     BufferUsage::all(),
-                    uniform,
+                    global,
                 )?;
 
                 Arc::new(PersistentDescriptorSet::start(pipeline.clone(), 0)
@@ -330,20 +329,13 @@ impl VulkanGfxLoop {
             let cb = cb.end_render_pass()?;
             let cb = cb.build()?;
 
-            let future = if let Some(previous_frame_end) = previous_frame_end.take() {
-                Box::new(previous_frame_end
-                    .join(acquire_future)
-                    .then_execute(self.queue.clone(), cb)?
-                    .then_swapchain_present(self.queue.clone(), self.swapchain.clone(), image_num)
-                    .then_signal_fence_and_flush()?) as Box<GpuFuture>
-            } else {
-                // _should_ not happen, but if it does, just execute the current command buffer.
-                Box::new(cb.execute(self.queue.clone())?
-                    .then_swapchain_present(self.queue.clone(), self.swapchain.clone(), image_num)
-                    .then_signal_fence_and_flush()?) as Box<GpuFuture>
-            };
+            let future = previous_frame
+                .join(acquire_future)
+                .then_execute(self.queue.clone(), cb)?
+                .then_swapchain_present(self.queue.clone(), self.swapchain.clone(), image_num)
+                .then_signal_fence_and_flush()?;
 
-            previous_frame_end = Some(future);
+            previous_frame = Box::new(future);
         }
 
         Ok(())

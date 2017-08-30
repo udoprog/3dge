@@ -38,7 +38,10 @@ impl ModelGeometry {
             }
         };
 
-        let normals = Vec::new();
+        let normals: Vec<Normal> = p.normals(&buffers)
+            .ok_or(ErrorKind::NoPrimitive)?
+            .map(Into::into)
+            .collect();
 
         let indices = p.indices_u32(&buffers)
             .ok_or(ErrorKind::NoIndices)?
