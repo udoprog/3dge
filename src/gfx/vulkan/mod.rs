@@ -6,12 +6,15 @@ pub mod vulkan_gfx_loop;
 pub mod vulkan_gfx_loop_builder;
 pub mod vulkan_gfx;
 mod geometry_entry;
-mod vertex_def;
 
 use self::shaders::basic::vs;
 pub use self::vulkan_gfx_instance::VulkanGfxInstance;
+use gfx::{Normal, Vertex};
 use vulkano::framebuffer;
 use vulkano::pipeline;
+
+impl_vertex!(Vertex, vertex);
+impl_vertex!(Normal, normal);
 
 pub type UniformGlobal = vs::ty::Global;
 pub type UniformModel = vs::ty::Model;

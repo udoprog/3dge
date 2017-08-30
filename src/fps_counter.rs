@@ -1,4 +1,4 @@
-use super::errors::*;
+use gfx::errors::*;
 use std::time::{Duration, SystemTime};
 
 pub struct FpsCounter<C> {

@@ -13,9 +13,27 @@ pub mod vertices;
 
 pub use self::geometry_id::GeometryId;
 
-pub type Vertex = [f32; 3];
-pub type Normal = [f32; 3];
-pub type Color = [f32; 4];
+#[derive(Copy, Clone, Debug)]
+pub struct Vertex {
+    vertex: (f32, f32, f32),
+}
+
+impl From<[f32; 3]> for Vertex {
+    fn from(value: [f32; 3]) -> Vertex {
+        Vertex { vertex: (value[0], value[1], value[2]) }
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct Normal {
+    normal: (f32, f32, f32),
+}
+
+impl From<[f32; 3]> for Normal {
+    fn from(value: [f32; 3]) -> Normal {
+        Normal { normal: (value[0], value[1], value[2]) }
+    }
+}
 
 #[cfg(feature = "gfx-vulkan")]
 pub use self::vulkan::*;

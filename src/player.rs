@@ -3,7 +3,7 @@ use super::model::ModelGeometry;
 use super::scheduler::{Scheduler, SchedulerSetup};
 use cgmath::{Matrix4, Point3};
 use cgmath::prelude::*;
-use gfx::{GeometryId, Vertex};
+use gfx::GeometryId;
 use gfx::errors as gfx;
 use gfx::geometry::{Geometry, GeometryAccessor};
 use gfx::geometry_object::GeometryObject;

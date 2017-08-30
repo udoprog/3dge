@@ -1,6 +1,7 @@
 use super::errors::*;
 use super::fps_counter::FpsCounter;
 use gfx::GfxLoopBuilder;
+use gfx::errors as gfx;
 use std::sync::{Arc, Condvar, Mutex};
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
@@ -68,28 +69,33 @@ impl GfxThread {
                 Ok(())
             });
 
-            let (ref enabled_mutex, ref enabled_cond) = *enabled;
+            let on_each_frame: Box<FnMut() -> gfx::Result<bool>> = Box::new(move || {
+                let (ref enabled_mutex, ref enabled_cond) = *enabled;
 
-            while !stopped.load(Ordering::Relaxed) {
                 {
-                    let mut guard = enabled_mutex.lock().map_err(|_| ErrorKind::PoisonError)?;
+                    let mut guard = enabled_mutex.lock().map_err(
+                        |_| gfx::ErrorKind::PoisonError,
+                    )?;
 
                     if !*guard {
                         while !*guard {
-                            guard = enabled_cond.wait(guard).map_err(|_| ErrorKind::PoisonError)?;
+                            guard = enabled_cond.wait(guard).map_err(
+                                |_| gfx::ErrorKind::PoisonError,
+                            )?;
                         }
 
                         fps_counter.reset()?;
                     }
                 }
 
-                if let Err(e) = gfx_loop.tick() {
-                    error!("error in gfx thread: {:?}", e);
-                    errored.store(true, Ordering::Relaxed);
-                    return Err(e.into());
-                }
-
                 fps_counter.tick()?;
+                Ok(stopped.load(Ordering::Relaxed))
+            });
+
+            if let Err(e) = gfx_loop.run() {
+                error!("error in gfx thread: {:?}", e);
+                errored.store(true, Ordering::Relaxed);
+                return Err(e.into());
             }
 
             Ok(())

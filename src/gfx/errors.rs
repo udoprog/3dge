@@ -2,6 +2,10 @@
 use super::vulkan::errors as vulkan;
 
 error_chain! {
+    foreign_links {
+        SystemTimeError(::std::time::SystemTimeError);
+    }
+
     links {
         Vulkan(vulkan::Error, vulkan::ErrorKind) #[cfg(feature = "gfx-vulkan")];
     }
