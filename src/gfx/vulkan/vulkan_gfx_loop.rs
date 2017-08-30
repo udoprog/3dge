@@ -2,10 +2,11 @@ use super::{Fb, Pl, Rp, UniformGlobal, UniformModel};
 use super::geometry_entry::GeometryEntry;
 use cgmath::{Matrix4, Rad};
 use cgmath::prelude::*;
-use gfx::{GeometryId, Vertex, Window};
+use gfx::{GeometryId, Window};
 use gfx::camera_object::CameraObject;
 use gfx::command::Command;
 use gfx::errors::*;
+use gfx::vertices::Vertices;
 use std::collections::HashMap;
 use std::f32;
 use std::mem;
@@ -17,6 +18,7 @@ use vulkano::descriptor::descriptor_set::DescriptorSet;
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 use vulkano::device::{Device, Queue};
 use vulkano::framebuffer::{Framebuffer, FramebufferBuilder};
+use vulkano::image::AttachmentImage;
 use vulkano::image::SwapchainImage;
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::swapchain::{self, AcquireError, Swapchain};
@@ -33,9 +35,11 @@ pub struct VulkanGfxLoop {
     queue: Arc<Queue>,
     window: Arc<Window>,
     dimensions: [u32; 2],
-    framebuffers: Option<Vec<Arc<Fb>>>,
     render_pass: Arc<Rp>,
     pipeline: Arc<Pl>,
+    depth_buffer: Arc<AttachmentImage>,
+    /// Current frame buffers
+    framebuffers: Option<Vec<Arc<Fb>>>,
     /// Current registered geometry.
     visible: HashMap<GeometryId, GeometryEntry>,
     /// Current camera.
@@ -56,9 +60,9 @@ impl VulkanGfxLoop {
         queue: Arc<Queue>,
         window: Arc<Window>,
         dimensions: [u32; 2],
-        framebuffers: Option<Vec<Arc<Fb>>>,
         render_pass: Arc<Rp>,
         pipeline: Arc<Pl>,
+        depth_buffer: Arc<AttachmentImage>,
     ) -> VulkanGfxLoop {
         VulkanGfxLoop {
             recv: recv,
@@ -68,9 +72,10 @@ impl VulkanGfxLoop {
             queue: queue,
             window: window,
             dimensions: dimensions,
-            framebuffers: framebuffers,
             render_pass: render_pass,
             pipeline: pipeline,
+            depth_buffer: depth_buffer,
+            framebuffers: None,
             visible: HashMap::new(),
             camera: None,
             recreate_swapchain: false,
@@ -116,31 +121,6 @@ impl VulkanGfxLoop {
         Ok(Arc::new(uniform_buffer_set))
     }
 
-    fn create_geometry(
-        &self,
-    ) -> Result<Vec<(Arc<CpuAccessibleBuffer<[Vertex]>>, Arc<SyncDescriptorSet>)>> {
-        let mut out: Vec<(Arc<CpuAccessibleBuffer<[Vertex]>>, Arc<SyncDescriptorSet>)> = Vec::new();
-
-        for entry in self.visible.values() {
-            let buffer = entry.buffer.clone();
-            let geometry = entry.geometry.read_lock()?;
-            let transformation = geometry.transformation()?;
-
-            let model = UniformModel { model: transformation.into() };
-
-            let uniform_buffer =
-                CpuAccessibleBuffer::from_data(self.device.clone(), BufferUsage::all(), model)?;
-
-            let ds = Arc::new(PersistentDescriptorSet::start(self.pipeline.clone(), 0)
-                .add_buffer(uniform_buffer.clone())?
-                .build()?);
-
-            out.push((buffer, ds));
-        }
-
-        Ok(out)
-    }
-
     fn process_command(&mut self, command: Command) -> Result<()> {
         use self::Command::*;
 
@@ -156,15 +136,38 @@ impl VulkanGfxLoop {
             AddGeometry(geometry) => {
                 let g = geometry.read_lock()?;
 
-                let buffer = CpuAccessibleBuffer::from_iter(
+                let Vertices {
+                    vertices,
+                    normals,
+                    indices,
+                } = g.vertices()?;
+
+                let vertex_buffer = CpuAccessibleBuffer::from_iter(
                     self.device.clone(),
                     BufferUsage::all(),
-                    g.vertices()?.iter().cloned(),
+                    vertices.into_iter(),
+                )?;
+
+                let normal_buffer = CpuAccessibleBuffer::from_iter(
+                    self.device.clone(),
+                    BufferUsage::all(),
+                    normals.into_iter(),
+                )?;
+
+                let index_buffer = CpuAccessibleBuffer::from_iter(
+                    self.device.clone(),
+                    BufferUsage::all(),
+                    indices.into_iter(),
                 )?;
 
                 self.visible.insert(
                     g.id(),
-                    GeometryEntry::new(buffer, geometry.clone_geometry()),
+                    GeometryEntry::new(
+                        vertex_buffer,
+                        normal_buffer,
+                        index_buffer,
+                        geometry.clone_geometry(),
+                    ),
                 );
             }
         }
@@ -219,6 +222,7 @@ impl VulkanGfxLoop {
                 for image in &self.images {
                     let fb = Framebuffer::start(self.render_pass.clone())
                         .add(image.clone())
+                        .and_then(|b| b.add(self.depth_buffer.clone()))
                         .and_then(FramebufferBuilder::build)
                         .map(Arc::new)?;
 
@@ -257,20 +261,46 @@ impl VulkanGfxLoop {
 
         let uniform_buffer_set = self.create_global()?;
 
-        let geometry = self.create_geometry()?;
-
-        for (buffer, position) in geometry {
-            cb = cb.draw(self.pipeline.clone(),
-            DynamicState {
-                line_width: None,
-                viewports: Some(vec![Viewport {
+        let state = DynamicState {
+            line_width: None,
+            viewports: Some(vec![
+                Viewport {
                     origin: [0.0, 0.0],
                     dimensions: [self.dimensions[0] as f32, self.dimensions[1] as f32],
-                    depth_range: 0.0 .. 1.0,
-                }]),
-                scissors: None,
-            },
-            vec![buffer], (uniform_buffer_set.clone(), position), ())?;
+                    depth_range: 0.0..1.0,
+                },
+            ]),
+            scissors: None,
+        };
+
+        for entry in self.visible.values() {
+            let GeometryEntry {
+                ref vertex_buffer,
+                ref normal_buffer,
+                ref index_buffer,
+                ref geometry,
+            } = *entry;
+
+            let geometry = geometry.read_lock()?;
+            let transformation = geometry.transformation()?;
+
+            let model = UniformModel { model: transformation.into() };
+
+            let uniform_buffer =
+                CpuAccessibleBuffer::from_data(self.device.clone(), BufferUsage::all(), model)?;
+
+            let position = Arc::new(PersistentDescriptorSet::start(self.pipeline.clone(), 0)
+                .add_buffer(uniform_buffer.clone())?
+                .build()?);
+
+            cb = cb.draw_indexed(
+                        self.pipeline.clone(),
+                        state.clone(),
+                        vec![vertex_buffer.clone(), normal_buffer.clone()],
+                        index_buffer.clone(),
+                        (uniform_buffer_set.clone(), position),
+                        ()
+                    )?;
         }
 
         let cb = cb.end_render_pass()?;

@@ -1,14 +1,9 @@
 macro_rules! vulkan_link_error {
     ($name:ty) => {
-    impl From<$name> for $crate::gfx::vulkan::errors::Error {
-        fn from(value: $name) -> $crate::gfx::vulkan::errors::Error {
-            value.into()
-        }
-    }
-
     impl From<$name> for $crate::gfx::errors::Error {
         fn from(value: $name) -> $crate::gfx::errors::Error {
-            let error: $crate::gfx::vulkan::errors::Error = value.into();
+            let error: self::Error = value.into();
+            let error: $crate::gfx::vulkan::errors::Error = error.into();
             error.into()
         }
     }
@@ -23,6 +18,7 @@ mod command_buffer {
             AutoCommandBufferBuilderContextError(AutoCommandBufferBuilderContextError);
             BuildError(BuildError);
             DrawError(DrawError);
+            DrawIndexedError(DrawIndexedError);
             BeginRenderPassError(BeginRenderPassError);
             CommandBufferExecError(CommandBufferExecError);
         }
@@ -31,6 +27,7 @@ mod command_buffer {
     vulkan_link_error!(AutoCommandBufferBuilderContextError);
     vulkan_link_error!(BuildError);
     vulkan_link_error!(DrawError);
+    vulkan_link_error!(DrawIndexedError);
     vulkan_link_error!(BeginRenderPassError);
     vulkan_link_error!(CommandBufferExecError);
 }
@@ -151,6 +148,18 @@ mod cpu_access {
     vulkan_link_error!(WriteLockError);
 }
 
+mod image {
+    use vulkano::image::*;
+
+    error_chain! {
+        foreign_links {
+            ImageCreationError(ImageCreationError);
+        }
+    }
+
+    vulkan_link_error!(ImageCreationError);
+}
+
 mod vulkano_win {
     use vulkano_win::*;
 
@@ -182,6 +191,7 @@ error_chain! {
         Sync(self::sync::Error, self::sync::ErrorKind);
         DescriptorSet(self::descriptor_set::Error, self::descriptor_set::ErrorKind);
         CpuAccess(self::cpu_access::Error, self::cpu_access::ErrorKind);
+        Image(self::image::Error, self::image::ErrorKind);
     }
 }
 

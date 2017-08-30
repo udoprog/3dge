@@ -8,16 +8,14 @@ pub mod color;
 pub mod errors;
 pub mod geometry;
 pub mod geometry_object;
-pub mod rectangle;
 mod geometry_id;
+pub mod vertices;
 
 pub use self::geometry_id::GeometryId;
 
-#[derive(Debug, Clone)]
-pub struct Vertex {
-    pub position: [f32; 3],
-    pub color: [f32; 3],
-}
+pub type Vertex = [f32; 3];
+pub type Normal = [f32; 3];
+pub type Color = [f32; 4];
 
 #[cfg(feature = "gfx-vulkan")]
 pub use self::vulkan::*;

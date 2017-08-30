@@ -1,4 +1,4 @@
-use super::{Fb, Pl, Rp};
+use super::{Pl, Rp};
 use super::vulkan_gfx_loop::VulkanGfxLoop;
 use gfx::GfxLoop;
 use gfx::Window;
@@ -7,6 +7,7 @@ use gfx::errors::*;
 use std::sync::Arc;
 use std::sync::mpsc;
 use vulkano::device::{Device, Queue};
+use vulkano::image::AttachmentImage;
 use vulkano::image::SwapchainImage;
 use vulkano::swapchain::Swapchain;
 
@@ -18,9 +19,9 @@ pub struct VulkanGfxLoopBuilder {
     queue: Arc<Queue>,
     window: Arc<Window>,
     dimensions: [u32; 2],
-    framebuffers: Option<Vec<Arc<Fb>>>,
     render_pass: Arc<Rp>,
     pipeline: Arc<Pl>,
+    depth_buffer: Arc<AttachmentImage>,
 }
 
 impl VulkanGfxLoopBuilder {
@@ -32,9 +33,9 @@ impl VulkanGfxLoopBuilder {
         queue: Arc<Queue>,
         window: Arc<Window>,
         dimensions: [u32; 2],
-        framebuffers: Option<Vec<Arc<Fb>>>,
         render_pass: Arc<Rp>,
         pipeline: Arc<Pl>,
+        depth_buffer: Arc<AttachmentImage>,
     ) -> VulkanGfxLoopBuilder {
         VulkanGfxLoopBuilder {
             recv: recv,
@@ -44,9 +45,9 @@ impl VulkanGfxLoopBuilder {
             queue: queue,
             window: window,
             dimensions: dimensions,
-            framebuffers: framebuffers,
             render_pass: render_pass,
             pipeline: pipeline,
+            depth_buffer: depth_buffer,
         }
     }
 
@@ -59,9 +60,9 @@ impl VulkanGfxLoopBuilder {
             self.queue,
             self.window,
             self.dimensions,
-            self.framebuffers,
             self.render_pass,
             self.pipeline,
+            self.depth_buffer,
         ))
     }
 }

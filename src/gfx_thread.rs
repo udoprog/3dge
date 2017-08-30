@@ -58,7 +58,9 @@ impl GfxThread {
         let stopped = self.stopped.clone();
         let enabled = self.enabled.clone();
 
-        self.handle = Some(thread::spawn(move || {
+        let builder = thread::Builder::new().name(String::from("gfx"));
+
+        self.handle = Some(builder.spawn(move || {
             let mut gfx_loop = gfx_loop_builder.into_loop()?;
 
             let mut fps_counter = FpsCounter::new(|fps| {
@@ -91,7 +93,7 @@ impl GfxThread {
             }
 
             Ok(())
-        }));
+        })?);
 
         Ok(())
     }

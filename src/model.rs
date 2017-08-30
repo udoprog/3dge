@@ -1,19 +1,57 @@
 use super::errors::*;
 use cgmath::{Matrix4, Point3};
 use cgmath::prelude::*;
-use gfx::{GeometryId, Vertex};
+use gfx::{GeometryId, Normal, Vertex};
 use gfx::errors as gfx;
 use gfx::geometry::{Geometry, GeometryAccessor};
 use gfx::geometry_object::GeometryObject;
-use gltf::Gltf;
-use std::io::{BufReader, Read};
+use gfx::vertices::Vertices;
+use gltf_importer::{self, Config};
+use gltf_importer::config::ValidationStrategy;
+use gltf_utils::PrimitiveIterators;
+use std::path::Path;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 
 #[derive(Debug)]
 pub struct ModelGeometry {
     id: GeometryId,
     location: Point3<f32>,
-    mesh: Vec<Vertex>,
+    pub mesh: Vec<Vertex>,
+    pub normals: Vec<Normal>,
+    pub indices: Vec<u32>,
+}
+
+impl ModelGeometry {
+    pub fn from_gltf<P: AsRef<Path>>(path: P) -> Result<ModelGeometry> {
+        let config = Config { validation_strategy: ValidationStrategy::Complete };
+
+        let (gltf, buffers) = gltf_importer::import_with_config(path, config)?;
+
+        let m = gltf.meshes().nth(0).ok_or(ErrorKind::NoMesh)?;
+        let p = m.primitives().nth(0).ok_or(ErrorKind::NoPrimitive)?;
+
+        let mesh: Vec<Vertex> = {
+            if let Some(positions) = p.positions(&buffers) {
+                positions.map(Into::into).collect()
+            } else {
+                Vec::new()
+            }
+        };
+
+        let normals = Vec::new();
+
+        let indices = p.indices_u32(&buffers)
+            .ok_or(ErrorKind::NoIndices)?
+            .collect();
+
+        Ok(ModelGeometry {
+            id: GeometryId::allocate(),
+            location: Point3::new(0.0, 0.0, 0.0),
+            mesh: mesh,
+            normals: normals,
+            indices: indices,
+        })
+    }
 }
 
 pub struct Model {
@@ -21,29 +59,8 @@ pub struct Model {
 }
 
 impl Model {
-    pub fn from_gltf<R>(reader: R) -> Result<Model>
-    where
-        R: Read,
-    {
-        let gltf = Gltf::from_reader(BufReader::new(reader))?
-            .validate_minimally()?;
-
-        let mesh = Vec::new();
-
-        // TODO: actually do the conversion and only support one mesh.
-        for m in gltf.meshes() {
-            for _ in m.primitives() {}
-        }
-
-        let model = Model {
-            geometry: Arc::new(RwLock::new(ModelGeometry {
-                id: GeometryId::allocate(),
-                location: Point3::new(0.0, 0.0, 0.0),
-                mesh: mesh,
-            })),
-        };
-
-        Ok(model)
+    pub fn new(geometry: ModelGeometry) -> Model {
+        Model { geometry: Arc::new(RwLock::new(geometry)) }
     }
 
     pub fn transform(&mut self, transform: &Matrix4<f32>) -> gfx::Result<()> {
@@ -87,7 +104,11 @@ impl<'a> GeometryAccessor for RwLockReadGuard<'a, ModelGeometry> {
         Ok(self.location)
     }
 
-    fn vertices(&self) -> gfx::Result<Vec<Vertex>> {
-        Ok(self.mesh.clone())
+    fn vertices(&self) -> gfx::Result<Vertices> {
+        Ok(Vertices::new(
+            self.mesh.clone(),
+            self.normals.clone(),
+            self.indices.clone(),
+        ))
     }
 }

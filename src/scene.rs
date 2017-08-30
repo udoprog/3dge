@@ -2,12 +2,12 @@ use super::boxed_scene::BoxedScene;
 use super::camera::{Camera, CameraScroll};
 use super::errors::*;
 use super::into_boxed_scene::IntoBoxedScene;
+use super::model::Model;
 use super::player::{Player, PlayerTransform};
 use super::scheduler::{Scheduler, SchedulerSetup};
 use cgmath::Matrix4;
 use gfx::Gfx;
 use gfx::geometry_object::GeometryObject;
-use gfx::rectangle::Rectangle;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
@@ -122,8 +122,8 @@ impl From<Player> for SceneObject {
     }
 }
 
-impl From<Rectangle> for SceneObject {
-    fn from(value: Rectangle) -> SceneObject {
+impl From<Model> for SceneObject {
+    fn from(value: Model) -> SceneObject {
         SceneObject::Static(Box::new(value))
     }
 }

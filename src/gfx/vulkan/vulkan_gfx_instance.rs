@@ -1,13 +1,14 @@
 use super::shaders::basic::{fs, vs};
+use super::vertex_def::VertexDef;
 use super::vulkan_gfx::VulkanGfx;
 use super::vulkan_gfx_loop_builder::VulkanGfxLoopBuilder;
 use super::vulkano_win_window::VulkanoWinWindow;
-use gfx::Vertex;
 use gfx::Window;
 use gfx::errors::*;
 use std::sync::Arc;
 use std::sync::mpsc;
 use vulkano::device::{self, Device};
+use vulkano::format::Format;
 use vulkano::framebuffer::Subpass;
 use vulkano::instance::{self, Instance};
 use vulkano::pipeline::GraphicsPipeline;
@@ -116,11 +117,17 @@ impl VulkanGfxInstance {
                     store: Store,
                     format: swapchain.format(),
                     samples: 1,
+                },
+                depth: {
+                    load: Clear,
+                    store: DontCare,
+                    format: Format::D16Unorm,
+                    samples: 1,
                 }
             },
             pass: {
                 color: [color],
-                depth_stencil: {}
+                depth_stencil: {depth}
             }
         )?);
 
@@ -129,13 +136,19 @@ impl VulkanGfxInstance {
         )?;
 
         let pipeline = Arc::new(GraphicsPipeline::start()
-            .vertex_input_single_buffer::<Vertex>()
+            .vertex_input_single_buffer::<VertexDef>()
             .vertex_shader(vs.main_entry_point(), ())
             .triangle_list()
             .viewports_dynamic_scissors_irrelevant(1)
             .fragment_shader(fs.main_entry_point(), ())
             .render_pass(sub_pass)
             .build(device.clone())?);
+
+        let depth_buffer = ::vulkano::image::attachment::AttachmentImage::transient(
+            device.clone(),
+            dimensions,
+            Format::D16Unorm,
+        )?;
 
         let gfx_loop_builder = VulkanGfxLoopBuilder::new(
             recv,
@@ -145,9 +158,9 @@ impl VulkanGfxInstance {
             queue.clone(),
             window.clone(),
             window.dimensions()?,
-            None,
             render_pass,
             pipeline,
+            depth_buffer.clone(),
         );
 
         Ok((gfx, gfx_loop_builder))
