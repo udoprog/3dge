@@ -15,7 +15,6 @@ error_chain! {
 
     links {
         Gfx(gfx::errors::Error, gfx::errors::ErrorKind);
-        Vulkan(gfx::vulkan::errors::Error, gfx::vulkan::errors::ErrorKind) #[cfg(feature = "gfx-vulkan")];
     }
 
     errors {

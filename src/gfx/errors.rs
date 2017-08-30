@@ -1,6 +1,9 @@
+#[cfg(feature = "gfx-vulkan")]
+use super::vulkan::errors as vulkan;
+
 error_chain! {
     links {
-        Vulkan(super::vulkan::errors::Error, super::vulkan::errors::ErrorKind) #[cfg(feature = "gfx-vulkan")];
+        Vulkan(vulkan::Error, vulkan::ErrorKind) #[cfg(feature = "gfx-vulkan")];
     }
 
     errors {

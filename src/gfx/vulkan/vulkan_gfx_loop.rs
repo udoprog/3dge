@@ -145,8 +145,8 @@ impl VulkanGfxLoop {
         Ok(out)
     }
 
-    fn process_command(&mut self, _command: Command) -> Result<()> {
-        // do nothing right now
+    fn process_command(&mut self, command: Command) -> Result<()> {
+        println!("command: {:?}", command);
         Ok(())
     }
 

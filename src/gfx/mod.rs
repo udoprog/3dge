@@ -17,13 +17,7 @@ pub struct Vertex {
 
 
 #[cfg(feature = "gfx-vulkan")]
-pub use self::vulkan::vulkan_gfx::VulkanGfx as Gfx;
-#[cfg(feature = "gfx-vulkan")]
-pub use self::vulkan::vulkan_gfx_loop::VulkanGfxLoop as GfxLoop;
-#[cfg(feature = "gfx-vulkan")]
-pub use self::vulkan::vulkan_gfx_loop_builder::VulkanGfxLoopBuilder as GfxLoopBuilder;
-#[cfg(feature = "gfx-vulkan")]
-pub use self::vulkan::vulkano_win_window::VulkanoWinWindow as Window;
+pub use self::vulkan::*;
 
 pub enum GfxBuiltInShader {
     /// The simplest possible shader. Gets red color on screen.
