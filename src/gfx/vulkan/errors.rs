@@ -1,153 +1,193 @@
+macro_rules! vulkan_link_error {
+    ($name:ty) => {
+    impl From<$name> for $crate::gfx::vulkan::errors::Error {
+        fn from(value: $name) -> $crate::gfx::vulkan::errors::Error {
+            value.into()
+        }
+    }
+
+    impl From<$name> for $crate::gfx::errors::Error {
+        fn from(value: $name) -> $crate::gfx::errors::Error {
+            let error: $crate::gfx::vulkan::errors::Error = value.into();
+            error.into()
+        }
+    }
+    }
+}
+
+mod command_buffer {
+    use vulkano::command_buffer::*;
+
+    error_chain! {
+        foreign_links {
+            AutoCommandBufferBuilderContextError(AutoCommandBufferBuilderContextError);
+            BuildError(BuildError);
+            DrawError(DrawError);
+            BeginRenderPassError(BeginRenderPassError);
+            CommandBufferExecError(CommandBufferExecError);
+        }
+    }
+
+    vulkan_link_error!(AutoCommandBufferBuilderContextError);
+    vulkan_link_error!(BuildError);
+    vulkan_link_error!(DrawError);
+    vulkan_link_error!(BeginRenderPassError);
+    vulkan_link_error!(CommandBufferExecError);
+}
+
+mod device {
+    use vulkano::device::*;
+
+    error_chain! {
+        foreign_links {
+            DeviceCreationError(DeviceCreationError);
+        }
+    }
+
+    vulkan_link_error!(DeviceCreationError);
+}
+
+mod memory {
+    use vulkano::memory::*;
+
+    error_chain! {
+        foreign_links {
+            DeviceMemoryAllocError(DeviceMemoryAllocError);
+        }
+    }
+
+    vulkan_link_error!(DeviceMemoryAllocError);
+}
+
+mod instance {
+    use vulkano::instance::*;
+
+    error_chain! {
+        foreign_links {
+            InstanceCreationError(InstanceCreationError);
+        }
+    }
+
+    vulkan_link_error!(InstanceCreationError);
+}
+
+mod sync {
+    use vulkano::sync::*;
+
+    error_chain! {
+        foreign_links {
+            FlushError(FlushError);
+        }
+    }
+
+    vulkan_link_error!(FlushError);
+}
+
+mod swapchain {
+    use vulkano::swapchain::*;
+
+    error_chain! {
+        foreign_links {
+            SwapchainCreationError(SwapchainCreationError);
+            CapabilitiesError(CapabilitiesError);
+            AcquireError(AcquireError);
+        }
+    }
+
+    vulkan_link_error!(SwapchainCreationError);
+    vulkan_link_error!(CapabilitiesError);
+    vulkan_link_error!(AcquireError);
+}
+
+mod pipeline {
+    use vulkano::pipeline::*;
+
+    error_chain! {
+        foreign_links {
+            GraphicsPipelineCreationError(GraphicsPipelineCreationError);
+        }
+    }
+
+    vulkan_link_error!(GraphicsPipelineCreationError);
+}
+
+mod framebuffer {
+    use vulkano::framebuffer::*;
+
+    error_chain! {
+        foreign_links {
+            RenderPassCreationError(RenderPassCreationError);
+            FramebufferCreationError(FramebufferCreationError);
+        }
+    }
+
+    vulkan_link_error!(RenderPassCreationError);
+    vulkan_link_error!(FramebufferCreationError);
+}
+
+mod descriptor_set {
+    use vulkano::descriptor::descriptor_set::*;
+
+    error_chain! {
+        foreign_links {
+            PersistentDescriptorSetError(PersistentDescriptorSetError);
+            PersistentDescriptorSetBuildError(PersistentDescriptorSetBuildError);
+        }
+    }
+
+    vulkan_link_error!(PersistentDescriptorSetError);
+    vulkan_link_error!(PersistentDescriptorSetBuildError);
+}
+
+mod cpu_access {
+    use vulkano::buffer::cpu_access::*;
+
+    error_chain! {
+        foreign_links {
+            WriteLockError(WriteLockError);
+        }
+    }
+
+    vulkan_link_error!(WriteLockError);
+}
+
+mod vulkano_win {
+    use vulkano_win::*;
+
+    error_chain! {
+        foreign_links {
+            CreationError(CreationError);
+        }
+    }
+
+    vulkan_link_error!(CreationError);
+}
+
 use gfx::errors as gfx;
 
-use vulkano_win;
+error_chain! {
+    foreign_links {
+        OomError(::vulkano::OomError);
+    }
 
-macro_rules! vulkan_error {
-    ( $mod:ident => $name:ident { $( $error:ident; )* } ) => {
-        #[derive(Debug)]
-        pub enum $name {
-            $( $error($mod::$error), )*
-        }
-
-        $(
-        impl From<$mod::$error> for gfx::Error {
-            fn from(value: $mod::$error) -> gfx::Error {
-                gfx::Error::Vulkan(ErrorKind::$name($name::$error(value)))
-            }
-        }
-        )*
-    };
-}
-
-use vulkano::command_buffer;
-
-vulkan_error!{
-    command_buffer => CommandBuffer {
-        AutoCommandBufferBuilderContextError;
-        BuildError;
-        DrawError;
-        BeginRenderPassError;
-        CommandBufferExecError;
+    links {
+        VulkanoWin(self::vulkano_win::Error, self::vulkano_win::ErrorKind);
+        CommandBuffer(self::command_buffer::Error, self::command_buffer::ErrorKind);
+        Device(self::device::Error, self::device::ErrorKind);
+        Framebuffer(self::framebuffer::Error, self::framebuffer::ErrorKind);
+        Instance(self::instance::Error, self::instance::ErrorKind);
+        Memory(self::memory::Error, self::memory::ErrorKind);
+        Pipeline(self::pipeline::Error, self::pipeline::ErrorKind);
+        Swapchain(self::swapchain::Error, self::swapchain::ErrorKind);
+        Sync(self::sync::Error, self::sync::ErrorKind);
+        DescriptorSet(self::descriptor_set::Error, self::descriptor_set::ErrorKind);
+        CpuAccess(self::cpu_access::Error, self::cpu_access::ErrorKind);
     }
 }
 
-use vulkano::device;
-
-vulkan_error!{
-    device => Device {
-        DeviceCreationError;
+impl From<::vulkano::OomError> for gfx::Error {
+    fn from(value: ::vulkano::OomError) -> gfx::Error {
+        let error: Error = value.into();
+        error.into()
     }
 }
-
-use vulkano::memory;
-
-vulkan_error!{
-    memory => Memory {
-        DeviceMemoryAllocError;
-    }
-}
-
-use vulkano::instance;
-
-vulkan_error!{
-    instance => Instance {
-        InstanceCreationError;
-    }
-}
-
-use vulkano::sync;
-
-vulkan_error!{
-    sync => Sync {
-        FlushError;
-    }
-}
-
-use vulkano::swapchain;
-
-vulkan_error!{
-    swapchain => Swapchain {
-        SwapchainCreationError;
-        CapabilitiesError;
-        AcquireError;
-    }
-}
-
-use vulkano::pipeline;
-
-vulkan_error!{
-    pipeline => Pipeline {
-        GraphicsPipelineCreationError;
-    }
-}
-
-use vulkano::framebuffer;
-
-vulkan_error!{
-    framebuffer => Framebuffer {
-        RenderPassCreationError;
-        FramebufferCreationError;
-    }
-}
-
-use vulkano::descriptor::descriptor_set;
-
-vulkan_error!{
-    descriptor_set => DescriptorSet {
-        PersistentDescriptorSetError;
-        PersistentDescriptorSetBuildError;
-    }
-}
-
-use vulkano::buffer::cpu_access;
-
-vulkan_error!{
-    cpu_access => CpuAccess {
-        WriteLockError;
-    }
-}
-
-use vulkano::OomError;
-
-impl From<OomError> for gfx::Error {
-    fn from(value: OomError) -> gfx::Error {
-        gfx::Error::Vulkan(ErrorKind::OomError(value))
-    }
-}
-
-vulkan_error!{
-    vulkano_win => VulkanoWin {
-        CreationError;
-    }
-}
-
-#[derive(Debug)]
-pub enum ErrorKind {
-    OomError(::vulkano::OomError),
-    NoCompositeAlphaCapability,
-    NoSupportedDevice,
-    NoQueueFamily,
-    NoQueueAvailable,
-    NoSubpass,
-    NoWindowDimensions,
-    VulkanoWin(VulkanoWin),
-    CommandBuffer(CommandBuffer),
-    Device(Device),
-    Framebuffer(Framebuffer),
-    Instance(Instance),
-    Memory(Memory),
-    Pipeline(Pipeline),
-    Swapchain(Swapchain),
-    Sync(Sync),
-    DescriptorSet(DescriptorSet),
-    CpuAccess(CpuAccess),
-}
-
-#[derive(Debug)]
-pub enum VulkanoWinError {
-    CreationError(vulkano_win::CreationError),
-    NoDimensions,
-}
-
-// result type should have gfx errors, since the backend mostly interfaces with the gfx stack.
-pub type Result<T> = ::std::result::Result<T, gfx::Error>;

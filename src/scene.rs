@@ -24,8 +24,8 @@ pub struct Scene<C, S> {
 }
 
 impl<C: 'static + CameraScroll + PlayerTransform, S: 'static> IntoBoxedScene<C> for Scene<C, S> {
-    fn into_boxed_scene(mut self, mut gfx: Box<Gfx>) -> Result<Box<BoxedScene<C>>> {
-        self.setup(gfx.as_mut())?;
+    fn into_boxed_scene(mut self, gfx: &Gfx) -> Result<Box<BoxedScene<C>>> {
+        self.setup(gfx)?;
         Ok(Box::new(self))
     }
 }
@@ -69,7 +69,7 @@ impl<C: 'static + CameraScroll + PlayerTransform, S: 'static> Scene<C, S> {
         self.objects.push(object.into());
     }
 
-    pub fn setup(&mut self, gfx: &mut Gfx) -> Result<()> {
+    pub fn setup(&mut self, gfx: &Gfx) -> Result<()> {
         use self::SceneObject::*;
 
         for object in &mut self.objects {

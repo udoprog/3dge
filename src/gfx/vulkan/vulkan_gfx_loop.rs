@@ -1,16 +1,16 @@
 use super::{Fb, Pl, Rp, UniformGlobal, UniformModel};
-use super::errors::*;
 use super::geometry_data::GeometryData;
-use super::vulkan_window::VulkanWindow;
 use cgmath::{Matrix4, Rad};
 use cgmath::prelude::*;
-use gfx::GfxLoop;
 use gfx::Vertex;
+use gfx::Window;
 use gfx::camera_geometry::CameraGeometry;
-use gfx::errors as gfx;
+use gfx::command::Command;
+use gfx::errors::*;
 use std::f32;
 use std::mem;
 use std::sync::{Arc, RwLock};
+use std::sync::mpsc;
 use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
 use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBuffer, DynamicState};
 use vulkano::descriptor::descriptor_set::DescriptorSet;
@@ -26,12 +26,13 @@ use vulkano::sync::now;
 pub type SyncDescriptorSet = DescriptorSet + Send + ::std::marker::Sync;
 
 pub struct VulkanGfxLoop {
+    recv: mpsc::Receiver<Command>,
     camera: Arc<RwLock<Option<Box<CameraGeometry>>>>,
     device: Arc<Device>,
     swapchain: Arc<Swapchain>,
     images: Vec<Arc<SwapchainImage>>,
     queue: Arc<Queue>,
-    window: Arc<Box<VulkanWindow>>,
+    window: Arc<Window>,
     dimensions: [u32; 2],
     framebuffers: Option<Vec<Arc<Fb>>>,
     render_pass: Arc<Rp>,
@@ -46,12 +47,13 @@ pub struct VulkanGfxLoop {
 
 impl VulkanGfxLoop {
     pub fn new(
+        recv: mpsc::Receiver<Command>,
         camera: Arc<RwLock<Option<Box<CameraGeometry>>>>,
         device: Arc<Device>,
         swapchain: Arc<Swapchain>,
         images: Vec<Arc<SwapchainImage>>,
         queue: Arc<Queue>,
-        window: Arc<Box<VulkanWindow>>,
+        window: Arc<Window>,
         dimensions: [u32; 2],
         framebuffers: Option<Vec<Arc<Fb>>>,
         render_pass: Arc<Rp>,
@@ -59,6 +61,7 @@ impl VulkanGfxLoop {
         geometry: Arc<RwLock<GeometryData>>,
     ) -> VulkanGfxLoop {
         VulkanGfxLoop {
+            recv: recv,
             camera: camera,
             device: device.clone(),
             swapchain: swapchain,
@@ -87,7 +90,7 @@ impl VulkanGfxLoop {
         );
 
         let view =
-            if let Some(ref camera) = *self.camera.read().map_err(|_| gfx::Error::PoisonError)? {
+            if let Some(ref camera) = *self.camera.read().map_err(|_| ErrorKind::PoisonError)? {
                 camera.view_transformation()?
             } else {
                 <Matrix4<f32> as SquareMatrix>::identity()
@@ -119,7 +122,7 @@ impl VulkanGfxLoop {
     ) -> Result<Vec<(Arc<CpuAccessibleBuffer<[Vertex]>>, Arc<SyncDescriptorSet>)>> {
         let mut out: Vec<(Arc<CpuAccessibleBuffer<[Vertex]>>, Arc<SyncDescriptorSet>)> = Vec::new();
 
-        let geometry = self.geometry.read().map_err(|_| gfx::Error::PoisonError)?;
+        let geometry = self.geometry.read().map_err(|_| ErrorKind::PoisonError)?;
 
         for entry in &geometry.entries {
             let buffer = entry.buffer.clone();
@@ -141,10 +144,28 @@ impl VulkanGfxLoop {
 
         Ok(out)
     }
-}
 
-impl GfxLoop for VulkanGfxLoop {
-    fn tick(&mut self) -> Result<()> {
+    fn process_command(&mut self, _command: Command) -> Result<()> {
+        // do nothing right now
+        Ok(())
+    }
+
+    /// Check for geometry updates.
+    fn check_for_updates(&mut self) -> Result<()> {
+        loop {
+            match self.recv.try_recv() {
+                Err(mpsc::TryRecvError::Empty) => break,
+                Err(mpsc::TryRecvError::Disconnected) => return Err(ErrorKind::Disconnected.into()),
+                Ok(command) => self.process_command(command)?,
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn tick(&mut self) -> Result<()> {
+        self.check_for_updates()?;
+
         if let Some(ref mut previous_frame_end) = self.previous_frame_end {
             previous_frame_end.cleanup_finished();
         }

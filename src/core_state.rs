@@ -27,7 +27,7 @@ pub struct CoreState {
     /// Events associated with the core state.
     pub events: WinitEvents,
     /// Graphics subsystem.
-    pub gfx: Box<Gfx>,
+    pub gfx: Gfx,
     /// Graphics thread handle.
     pub gfx_thread: GfxThread,
 }

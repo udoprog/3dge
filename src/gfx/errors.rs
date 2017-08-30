@@ -1,42 +1,34 @@
-use std::error;
-use std::fmt;
-
-#[cfg(feature = "gfx-vulkan")]
-pub mod vulkan {
-    pub use super::super::vulkan::errors::*;
-}
-
-#[cfg(not(feature = "gfx-vulkan"))]
-pub mod vulkan {
-    #[derive(Debug)]
-    pub enum ErrorKind {
+error_chain! {
+    links {
+        Vulkan(super::vulkan::errors::Error, super::vulkan::errors::ErrorKind) #[cfg(feature = "gfx-vulkan")];
     }
-}
 
-#[derive(Debug)]
-pub enum Error {
-    PoisonError,
-    /// Returned if a backend does not support the given shader.
-    UnsupportedShader,
-    Vulkan(vulkan::ErrorKind),
-}
+    errors {
+        PoisonError {
+        }
 
-pub type Result<T> = ::std::result::Result<T, Error>;
+        UnsupportedShader {
+        }
 
-impl From<vulkan::ErrorKind> for Error {
-    fn from(value: vulkan::ErrorKind) -> Error {
-        Error::Vulkan(value)
-    }
-}
+        NoCompositeAlphaCapability {
+        }
 
-impl error::Error for Error {
-    fn description(&self) -> &str {
-        "graphics backend error"
-    }
-}
+        NoSupportedDevice {
+        }
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "graphics backend error")
+        NoQueueFamily {
+        }
+
+        NoQueueAvailable {
+        }
+
+        NoSubpass {
+        }
+
+        NoWindowDimensions {
+        }
+
+        Disconnected {
+        }
     }
 }

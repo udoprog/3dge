@@ -18,17 +18,16 @@ impl WinitEvents {
     ///
     /// This is here, since the gfx and window bindings need access to the event loop.
     /// Possibly solve with some kind of DI?
-    pub fn setup_gfx(&self) -> Result<(Box<Gfx>, Box<GfxLoopBuilder>)> {
+    pub fn setup_gfx(&self) -> Result<(Gfx, GfxLoopBuilder)> {
         #[cfg(feature = "gfx-vulkan")]
         {
             use gfx::vulkan;
 
             let instance = vulkan::VulkanGfxInstance::new()?;
-            let window = Arc::new(Box::new(instance.build_window(&self.events_loop)?) as
-                Box<vulkan::vulkan_window::VulkanWindow>);
+            let window = Arc::new(instance.build_window(&self.events_loop)?);
             let (gfx, gfx_loop_builder) = instance.build_gfx(window)?;
 
-            return Ok((Box::new(gfx), Box::new(gfx_loop_builder)));
+            return Ok((gfx, gfx_loop_builder));
         }
 
         // statement is only run if no other backends are compiled in.

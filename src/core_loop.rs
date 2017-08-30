@@ -17,8 +17,8 @@ use std::time::Duration;
 use std::time::Instant;
 
 pub struct CoreLoop {
-    gfx: Box<Gfx>,
-    gfx_loop_builder: Box<GfxLoopBuilder>,
+    gfx: Gfx,
+    gfx_loop_builder: GfxLoopBuilder,
     core: Rc<RefCell<CoreState>>,
     core_scheduler: Scheduler<Rc<RefCell<CoreState>>>,
     scene: Option<Box<BoxedScene<CoreState>>>,
@@ -51,7 +51,7 @@ impl CoreLoop {
 
     /// Set the startup scene.
     pub fn set_scene<S: IntoBoxedScene<CoreState>>(&mut self, scene: S) -> Result<()> {
-        self.scene = Some(scene.into_boxed_scene(self.gfx.clone())?);
+        self.scene = Some(scene.into_boxed_scene(&self.gfx)?);
         Ok(())
     }
 

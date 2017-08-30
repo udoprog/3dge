@@ -2,7 +2,7 @@ use cgmath::{Matrix4, Point3, Rad, Vector3};
 use cgmath::prelude::*;
 use gfx::Vertex;
 use gfx::color::Color;
-use gfx::errors as gfx;
+use gfx::errors::*;
 use gfx::geometry::{Geometry, GeometryAccessor};
 use gfx::geometry_object::GeometryObject;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
@@ -40,23 +40,23 @@ impl GeometryObject for Rectangle {
 }
 
 impl Geometry for Arc<RwLock<RectangleGeometry>> {
-    fn read_lock<'a>(&'a self) -> gfx::Result<Box<'a + GeometryAccessor>> {
-        Ok(Box::new(self.read().map_err(|_| gfx::Error::PoisonError)?))
+    fn read_lock<'a>(&'a self) -> Result<Box<'a + GeometryAccessor>> {
+        Ok(Box::new(self.read().map_err(|_| ErrorKind::PoisonError)?))
     }
 }
 
 impl<'a> GeometryAccessor for RwLockReadGuard<'a, RectangleGeometry> {
-    fn transformation(&self) -> gfx::Result<Matrix4<f32>> {
+    fn transformation(&self) -> Result<Matrix4<f32>> {
         let translation = Matrix4::from_translation(self.origin.to_vec());
         let rotation = Matrix4::from_axis_angle(self.normal, Rad(0.0));
         Ok(translation * rotation)
     }
 
-    fn position(&self) -> gfx::Result<Point3<f32>> {
+    fn position(&self) -> Result<Point3<f32>> {
         Ok(self.origin)
     }
 
-    fn vertices(&self) -> gfx::Result<Vec<Vertex>> {
+    fn vertices(&self) -> Result<Vec<Vertex>> {
         let color: [f32; 3] = self.color.into();
 
         let mut vertices = Vec::new();

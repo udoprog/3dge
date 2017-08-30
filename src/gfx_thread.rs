@@ -53,7 +53,7 @@ impl GfxThread {
         Ok(())
     }
 
-    pub fn start(&mut self, gfx_loop_builder: Box<GfxLoopBuilder>) -> Result<()> {
+    pub fn start(&mut self, gfx_loop_builder: GfxLoopBuilder) -> Result<()> {
         let errored = self.errored.clone();
         let stopped = self.stopped.clone();
         let enabled = self.enabled.clone();

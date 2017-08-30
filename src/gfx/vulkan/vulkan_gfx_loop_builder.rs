@@ -1,22 +1,25 @@
 use super::{Fb, Pl, Rp};
-use super::errors::*;
 use super::geometry_data::GeometryData;
 use super::vulkan_gfx_loop::VulkanGfxLoop;
-use super::vulkan_window::VulkanWindow;
-use gfx::{GfxLoop, GfxLoopBuilder};
+use gfx::GfxLoop;
+use gfx::Window;
 use gfx::camera_geometry::CameraGeometry;
+use gfx::command::Command;
+use gfx::errors::*;
 use std::sync::{Arc, RwLock};
+use std::sync::mpsc;
 use vulkano::device::{Device, Queue};
 use vulkano::image::SwapchainImage;
 use vulkano::swapchain::Swapchain;
 
 pub struct VulkanGfxLoopBuilder {
+    recv: mpsc::Receiver<Command>,
     camera: Arc<RwLock<Option<Box<CameraGeometry>>>>,
     device: Arc<Device>,
     swapchain: Arc<Swapchain>,
     images: Vec<Arc<SwapchainImage>>,
     queue: Arc<Queue>,
-    window: Arc<Box<VulkanWindow>>,
+    window: Arc<Window>,
     dimensions: [u32; 2],
     framebuffers: Option<Vec<Arc<Fb>>>,
     render_pass: Arc<Rp>,
@@ -26,12 +29,13 @@ pub struct VulkanGfxLoopBuilder {
 
 impl VulkanGfxLoopBuilder {
     pub fn new(
+        recv: mpsc::Receiver<Command>,
         camera: Arc<RwLock<Option<Box<CameraGeometry>>>>,
         device: Arc<Device>,
         swapchain: Arc<Swapchain>,
         images: Vec<Arc<SwapchainImage>>,
         queue: Arc<Queue>,
-        window: Arc<Box<VulkanWindow>>,
+        window: Arc<Window>,
         dimensions: [u32; 2],
         framebuffers: Option<Vec<Arc<Fb>>>,
         render_pass: Arc<Rp>,
@@ -39,6 +43,7 @@ impl VulkanGfxLoopBuilder {
         geometry: Arc<RwLock<GeometryData>>,
     ) -> VulkanGfxLoopBuilder {
         VulkanGfxLoopBuilder {
+            recv: recv,
             camera: camera,
             device: device,
             swapchain: swapchain,
@@ -52,22 +57,21 @@ impl VulkanGfxLoopBuilder {
             geometry: geometry,
         }
     }
-}
 
-impl GfxLoopBuilder for VulkanGfxLoopBuilder {
-    fn into_loop(&self) -> Result<Box<GfxLoop>> {
-        Ok(Box::new(VulkanGfxLoop::new(
-            self.camera.clone(),
-            self.device.clone(),
-            self.swapchain.clone(),
-            self.images.clone(),
-            self.queue.clone(),
-            self.window.clone(),
-            self.dimensions.clone(),
-            self.framebuffers.clone(),
-            self.render_pass.clone(),
-            self.pipeline.clone(),
-            self.geometry.clone(),
-        )))
+    pub fn into_loop(self) -> Result<GfxLoop> {
+        Ok(VulkanGfxLoop::new(
+            self.recv,
+            self.camera,
+            self.device,
+            self.swapchain,
+            self.images,
+            self.queue,
+            self.window,
+            self.dimensions,
+            self.framebuffers,
+            self.render_pass,
+            self.pipeline,
+            self.geometry,
+        ))
     }
 }

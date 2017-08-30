@@ -28,7 +28,9 @@ impl Player {
     }
 
     pub fn transform(&mut self, transform: &Matrix4<f32>) -> gfx::Result<()> {
-        let mut g = self.geometry.write().map_err(|_| gfx::Error::PoisonError)?;
+        let mut g = self.geometry.write().map_err(
+            |_| gfx::ErrorKind::PoisonError,
+        )?;
         g.location = transform.transform_point(g.location);
         Ok(())
     }
@@ -37,7 +39,7 @@ impl Player {
     pub fn position(&self) -> gfx::Result<Point3<f32>> {
         self.geometry
             .read()
-            .map_err(|_| gfx::Error::PoisonError)?
+            .map_err(|_| gfx::ErrorKind::PoisonError)?
             .position()
     }
 }
@@ -50,7 +52,9 @@ impl GeometryObject for Player {
 
 impl Geometry for Arc<RwLock<PlayerGeometry>> {
     fn read_lock<'a>(&'a self) -> gfx::Result<Box<'a + GeometryAccessor>> {
-        Ok(Box::new(self.read().map_err(|_| gfx::Error::PoisonError)?))
+        Ok(Box::new(
+            self.read().map_err(|_| gfx::ErrorKind::PoisonError)?,
+        ))
     }
 }
 
@@ -114,7 +118,7 @@ impl<S: PlayerTransform> SchedulerSetup<S> for Player {
         scheduler.on_every_tick(Box::new(move |_, gs| {
             // perform player transform based on pressed keys
             if let Some(transform) = gs.player_transform()? {
-                let mut g = geometry.write().map_err(|_| gfx::Error::PoisonError)?;
+                let mut g = geometry.write().map_err(|_| ErrorKind::PoisonError)?;
                 g.location = transform.transform_point(g.location);
             }
 

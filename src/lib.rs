@@ -1,3 +1,4 @@
+#![recursion_limit="128"]
 #![feature(shared)]
 
 #[cfg(feature = "gfx-vulkan")]

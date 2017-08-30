@@ -44,7 +44,9 @@ impl Model {
     }
 
     pub fn transform(&mut self, transform: &Matrix4<f32>) -> gfx::Result<()> {
-        let mut g = self.geometry.write().map_err(|_| gfx::Error::PoisonError)?;
+        let mut g = self.geometry.write().map_err(
+            |_| gfx::ErrorKind::PoisonError,
+        )?;
         g.location = transform.transform_point(g.location);
         Ok(())
     }
@@ -63,7 +65,9 @@ impl GeometryObject for Model {
 
 impl Geometry for Arc<RwLock<ModelGeometry>> {
     fn read_lock<'a>(&'a self) -> gfx::Result<Box<'a + GeometryAccessor>> {
-        Ok(Box::new(self.read().map_err(|_| gfx::Error::PoisonError)?))
+        Ok(Box::new(
+            self.read().map_err(|_| gfx::ErrorKind::PoisonError)?,
+        ))
     }
 }
 

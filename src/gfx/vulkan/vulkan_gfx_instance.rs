@@ -1,12 +1,13 @@
-use super::errors::*;
 use super::geometry_data::GeometryData;
 use super::shaders::basic::{fs, vs};
 use super::vulkan_gfx::VulkanGfx;
 use super::vulkan_gfx_loop_builder::VulkanGfxLoopBuilder;
-use super::vulkan_window::VulkanWindow;
 use super::vulkano_win_window::VulkanoWinWindow;
 use gfx::Vertex;
+use gfx::Window;
+use gfx::errors::*;
 use std::sync::{Arc, RwLock};
+use std::sync::mpsc;
 use vulkano::device::{self, Device};
 use vulkano::framebuffer::Subpass;
 use vulkano::instance::{self, Instance};
@@ -30,7 +31,7 @@ impl VulkanGfxInstance {
     }
 
     /// Backend-specific implementation for building windows.
-    pub fn build_window(&self, events_loop: &winit::EventsLoop) -> Result<VulkanoWinWindow> {
+    pub fn build_window(&self, events_loop: &winit::EventsLoop) -> Result<Window> {
         let window = winit::WindowBuilder::new()
             .with_title("3dge")
             .build_vk_surface(events_loop, self.instance.clone())?;
@@ -38,10 +39,9 @@ impl VulkanGfxInstance {
         Ok(VulkanoWinWindow::new(window))
     }
 
-    pub fn build_gfx(
-        &self,
-        window: Arc<Box<VulkanWindow>>,
-    ) -> Result<(VulkanGfx, VulkanGfxLoopBuilder)> {
+    pub fn build_gfx(&self, window: Arc<Window>) -> Result<(VulkanGfx, VulkanGfxLoopBuilder)> {
+        let (send, recv) = mpsc::channel();
+
         let physical = instance::PhysicalDevice::enumerate(&self.instance)
             .next()
             .ok_or(ErrorKind::NoSupportedDevice)?;
@@ -101,6 +101,7 @@ impl VulkanGfxInstance {
         let geometry = Arc::new(RwLock::new(GeometryData::new()));
 
         let gfx = VulkanGfx::new(
+            send,
             camera.clone(),
             device.clone(),
             window.clone(),
@@ -143,6 +144,7 @@ impl VulkanGfxInstance {
             .build(device.clone())?);
 
         let gfx_loop_builder = VulkanGfxLoopBuilder::new(
+            recv,
             camera.clone(),
             device.clone(),
             swapchain.clone(),
