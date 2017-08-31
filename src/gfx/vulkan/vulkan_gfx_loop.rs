@@ -1,6 +1,8 @@
 use super::{UniformGlobal, UniformModel};
-use super::geometry_entry::GeometryEntry;
 use super::shaders::basic::{fs, vs};
+use super::vulkan_geometry::VulkanGeometry;
+use super::vulkan_primitive::VulkanPrimitive;
+use super::vulkan_primitives::VulkanPrimitives;
 use cgmath::{Matrix4, Rad};
 use cgmath::prelude::*;
 use gfx::{GeometryId, Window};
@@ -8,7 +10,7 @@ use gfx::{Normal, Vertex};
 use gfx::camera_object::CameraObject;
 use gfx::command::Command;
 use gfx::errors::*;
-use gfx::vertices::Vertices;
+use gfx::primitive::Primitive;
 use std::collections::HashMap;
 use std::f32;
 use std::mem;
@@ -41,7 +43,7 @@ pub struct VulkanGfxLoopTicker {
     render_pass: Arc<RenderPassAbstract + Send + Sync>,
     depth_buffer: Arc<AttachmentImage>,
     /// Current registered geometry.
-    visible: HashMap<GeometryId, GeometryEntry>,
+    visible: HashMap<GeometryId, VulkanGeometry>,
     /// Current camera.
     camera: Option<Box<CameraObject>>,
     /// previous frame
@@ -174,26 +176,31 @@ impl VulkanGfxLoopTicker {
         };
 
         for entry in self.visible.values() {
-            let GeometryEntry {
-                ref vertex_buffer,
-                ref normal_buffer,
-                ref index_buffer,
+            let VulkanGeometry {
+                ref primitives,
                 ref geometry,
             } = *entry;
 
-            let geometry = geometry.read_lock()?;
-            let transformation = geometry.transformation()?;
+            for p in &primitives.primitives {
+                let VulkanPrimitive {
+                    ref vertex_buffer,
+                    ref normal_buffer,
+                    ref index_buffer,
+                } = *p;
 
-            let model = UniformModel { model: transformation.into() };
+                let geometry = geometry.read_lock()?;
+                let transformation = geometry.transformation()?;
 
-            let uniform_buffer =
-                CpuAccessibleBuffer::from_data(self.device.clone(), BufferUsage::all(), model)?;
+                let model = UniformModel { model: transformation.into() };
 
-            let position = Arc::new(PersistentDescriptorSet::start(self.pipeline.clone(), 0)
-                .add_buffer(uniform_buffer.clone())?
-                .build()?);
+                let uniform_buffer =
+                    CpuAccessibleBuffer::from_data(self.device.clone(), BufferUsage::all(), model)?;
 
-            cb = cb.draw_indexed(
+                let position = Arc::new(PersistentDescriptorSet::start(self.pipeline.clone(), 0)
+                    .add_buffer(uniform_buffer.clone())?
+                    .build()?);
+
+                cb = cb.draw_indexed(
                         self.pipeline.clone(),
                         state.clone(),
                         vec![vertex_buffer.clone(), normal_buffer.clone()],
@@ -201,6 +208,7 @@ impl VulkanGfxLoopTicker {
                         (uniform_buffer_set.clone(), position),
                         ()
                     )?;
+            }
         }
 
         let cb = cb.end_render_pass()?;
@@ -237,38 +245,45 @@ impl VulkanGfxLoopTicker {
             AddGeometry(geometry) => {
                 let g = geometry.read_lock()?;
 
-                let Vertices {
-                    vertices,
-                    normals,
-                    indices,
-                } = g.vertices()?;
+                let mut primitives = Vec::new();
 
-                let vertex_buffer = CpuAccessibleBuffer::from_iter(
-                    self.device.clone(),
-                    BufferUsage::all(),
-                    vertices.into_iter(),
-                )?;
+                for p in g.primitives()?.primitives {
+                    let Primitive {
+                        vertices,
+                        normals,
+                        indices,
+                    } = p;
 
-                let normal_buffer = CpuAccessibleBuffer::from_iter(
-                    self.device.clone(),
-                    BufferUsage::all(),
-                    normals.into_iter(),
-                )?;
+                    let vertex_buffer = CpuAccessibleBuffer::from_iter(
+                        self.device.clone(),
+                        BufferUsage::all(),
+                        vertices.into_iter(),
+                    )?;
 
-                let index_buffer = CpuAccessibleBuffer::from_iter(
-                    self.device.clone(),
-                    BufferUsage::all(),
-                    indices.into_iter(),
-                )?;
+                    let normal_buffer = CpuAccessibleBuffer::from_iter(
+                        self.device.clone(),
+                        BufferUsage::all(),
+                        normals.into_iter(),
+                    )?;
 
-                self.visible.insert(
-                    g.id(),
-                    GeometryEntry::new(
+                    let index_buffer = CpuAccessibleBuffer::from_iter(
+                        self.device.clone(),
+                        BufferUsage::all(),
+                        indices.into_iter(),
+                    )?;
+
+                    primitives.push(VulkanPrimitive::new(
                         vertex_buffer,
                         normal_buffer,
                         index_buffer,
-                        geometry.clone_geometry(),
-                    ),
+                    ));
+                }
+
+                let primitives = VulkanPrimitives::new(primitives);
+
+                self.visible.insert(
+                    g.id(),
+                    VulkanGeometry::new(geometry.clone_geometry(), primitives),
                 );
             }
         }

@@ -80,15 +80,11 @@ impl<'a> CameraAccessor for RwLockWriteGuard<'a, Camera> {
         let mut location = self.location;
 
         // Slowly following camera, just to see some horizontal movement.
-        location.x = f32::min(player_pos.x + 0.2, location.x);
-        location.x = f32::max(player_pos.x - 0.2, location.x);
-
         let inverse_zoom = 1.0 - self.zoom;
 
+        location.x = player_pos.x;
         location.y = player_pos.y + 5.0 * inverse_zoom;
         location.z = 5.0 * inverse_zoom;
-
-        self.location = location;
 
         let look_at = Matrix4::look_at(
             /// Where the camera is.
@@ -96,7 +92,7 @@ impl<'a> CameraAccessor for RwLockWriteGuard<'a, Camera> {
             /// Where we are looking at
             player_pos,
             /// What should be considered 'up'.
-            Vector3::new(0.0, 0.0, -1.0),
+            Vector3::new(0.0, 0.0, 1.0),
         );
 
         Ok(look_at)

@@ -2,7 +2,6 @@ use super::boxed_scene::BoxedScene;
 use super::camera::{Camera, CameraScroll};
 use super::errors::*;
 use super::into_boxed_scene::IntoBoxedScene;
-use super::model::Model;
 use super::player::{Player, PlayerTransform};
 use super::scheduler::{Scheduler, SchedulerSetup};
 use cgmath::Matrix4;
@@ -119,11 +118,5 @@ impl From<Arc<RwLock<Camera>>> for SceneObject {
 impl From<Player> for SceneObject {
     fn from(value: Player) -> SceneObject {
         SceneObject::Player(value)
-    }
-}
-
-impl From<Model> for SceneObject {
-    fn from(value: Model) -> SceneObject {
-        SceneObject::Static(Box::new(value))
     }
 }

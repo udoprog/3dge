@@ -5,7 +5,9 @@ mod vulkan_gfx_instance;
 pub mod vulkan_gfx_loop;
 pub mod vulkan_gfx_loop_builder;
 pub mod vulkan_gfx;
-mod geometry_entry;
+mod vulkan_primitive;
+mod vulkan_primitives;
+mod vulkan_geometry;
 
 use self::shaders::basic::vs;
 pub use self::vulkan_gfx_instance::VulkanGfxInstance;

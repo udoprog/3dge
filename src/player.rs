@@ -1,24 +1,25 @@
 use super::errors::*;
-use super::model::ModelGeometry;
+use super::model::Model;
 use super::scheduler::{Scheduler, SchedulerSetup};
 use cgmath::{Matrix4, Point3};
 use cgmath::prelude::*;
 use gfx::GeometryId;
 use gfx::errors as gfx;
-use gfx::geometry::{Geometry, GeometryAccessor};
+use gfx::geometry::Geometry;
+use gfx::geometry_accessor::GeometryAccessor;
 use gfx::geometry_object::GeometryObject;
-use gfx::vertices::Vertices;
+use gfx::primitives::Primitives;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 
 #[derive(Debug)]
 pub struct PlayerGeometry {
     id: GeometryId,
     location: Point3<f32>,
-    model: ModelGeometry,
+    model: Model,
 }
 
 impl PlayerGeometry {
-    pub fn new(model: ModelGeometry) -> PlayerGeometry {
+    pub fn new(model: Model) -> PlayerGeometry {
         PlayerGeometry {
             id: GeometryId::allocate(),
             location: Point3::new(0.0, 0.0, 0.0),
@@ -32,7 +33,7 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(model: ModelGeometry) -> Player {
+    pub fn new(model: Model) -> Player {
         Player { geometry: Arc::new(RwLock::new(PlayerGeometry::new(model))) }
     }
 
@@ -80,12 +81,8 @@ impl<'a> GeometryAccessor for RwLockReadGuard<'a, PlayerGeometry> {
         Ok(self.location)
     }
 
-    fn vertices(&self) -> gfx::Result<Vertices> {
-        Ok(Vertices::new(
-            self.model.mesh.clone(),
-            self.model.normals.clone(),
-            self.model.indices.clone(),
-        ))
+    fn primitives(&self) -> gfx::Result<Primitives> {
+        Ok(self.model.primitives())
     }
 }
 

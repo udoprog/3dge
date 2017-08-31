@@ -7,14 +7,18 @@ use threedge::camera::Camera;
 use threedge::core_loop::CoreLoop;
 use threedge::core_state::CoreState;
 use threedge::errors::*;
-use threedge::model::ModelGeometry;
+use threedge::gltf_loader::GltfLoader;
 use threedge::player::Player;
 use threedge::scene::Scene;
 
 struct SceneState {}
 
 fn setup_scene() -> Result<Scene<CoreState, SceneState>> {
-    let player_model = ModelGeometry::from_gltf("models/player.gltf")?;
+    let player_loader = GltfLoader::from_file("models/player.gltf")?;
+
+    let player_model = player_loader.model_from_node("Cube")?.ok_or(
+        ErrorKind::NoNode,
+    )?;
 
     let player = Player::new(player_model);
     let camera = Arc::new(RwLock::new(Camera::new(&player)));

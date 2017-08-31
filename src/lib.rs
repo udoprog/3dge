@@ -25,6 +25,7 @@ extern crate gltf_utils;
 extern crate gltf_importer;
 extern crate shuteye;
 
+pub mod gltf_loader;
 pub mod events;
 pub mod errors;
 pub mod gfx;

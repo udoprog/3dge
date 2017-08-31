@@ -1,6 +1,8 @@
 #[cfg(feature = "gfx-vulkan")]
 pub mod vulkan;
 
+pub mod primitive;
+pub mod primitives;
 mod command;
 pub mod camera_accessor;
 pub mod camera_object;
@@ -8,6 +10,7 @@ pub mod color;
 pub mod errors;
 pub mod geometry;
 pub mod geometry_object;
+pub mod geometry_accessor;
 mod geometry_id;
 pub mod vertices;
 
