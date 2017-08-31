@@ -18,24 +18,9 @@ pub use self::geometry_id::GeometryId;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Vertex {
-    vertex: (f32, f32, f32),
-}
-
-impl From<[f32; 3]> for Vertex {
-    fn from(value: [f32; 3]) -> Vertex {
-        Vertex { vertex: (value[0], value[1], value[2]) }
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct Normal {
-    normal: (f32, f32, f32),
-}
-
-impl From<[f32; 3]> for Normal {
-    fn from(value: [f32; 3]) -> Normal {
-        Normal { normal: (value[0], value[1], value[2]) }
-    }
+    pub position: [f32; 3],
+    pub normal: [f32; 3],
+    pub tex_coord: [f32; 2],
 }
 
 #[cfg(feature = "gfx-vulkan")]

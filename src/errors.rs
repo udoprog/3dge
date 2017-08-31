@@ -25,6 +25,12 @@ error_chain! {
         NoPrimitive {
         }
 
+        NoPositions {
+        }
+
+        NoNormals {
+        }
+
         NoIndices {
         }
 
@@ -34,7 +40,9 @@ error_chain! {
         PoisonError {
         }
 
-        NoNode {
+        NoNode(name: &'static str) {
+            description("no node")
+            display("no node: {}", name)
         }
     }
 }

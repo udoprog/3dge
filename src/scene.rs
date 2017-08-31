@@ -1,15 +1,14 @@
 use super::boxed_scene::BoxedScene;
-use super::camera::{Camera, CameraScroll};
+use super::camera::CameraScroll;
 use super::errors::*;
 use super::into_boxed_scene::IntoBoxedScene;
-use super::player::{Player, PlayerTransform};
+use super::player::PlayerTransform;
+use super::scene_object::SceneObject;
 use super::scheduler::{Scheduler, SchedulerSetup};
 use cgmath::Matrix4;
 use gfx::Gfx;
-use gfx::geometry_object::GeometryObject;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::{Arc, RwLock};
 
 pub struct SceneState<C, S> {
     pub core: Rc<RefCell<C>>,
@@ -46,13 +45,6 @@ impl<C, S> BoxedScene<C> for Scene<C, S> {
     }
 }
 
-pub enum SceneObject {
-    Player(Player),
-    Camera(Arc<RwLock<Camera>>),
-    Static(Box<GeometryObject>),
-}
-
-
 impl<C: 'static + CameraScroll + PlayerTransform, S: 'static> Scene<C, S> {
     /// Create a new, empty scene.
     pub fn new(state: S) -> Scene<C, S> {
@@ -81,8 +73,8 @@ impl<C: 'static + CameraScroll + PlayerTransform, S: 'static> Scene<C, S> {
                     gfx.set_camera(camera)?;
                     camera.setup_scheduler(&mut self.scheduler);
                 }
-                Static(ref mut geometry) => {
-                    gfx.register_geometry(geometry.as_ref())?;
+                StaticEntity(ref mut static_entity) => {
+                    gfx.register_geometry(static_entity)?;
                 }
             }
         }
@@ -106,17 +98,5 @@ where
 {
     fn take_scroll(&mut self) -> Result<i32> {
         self.core.try_borrow_mut()?.take_scroll()
-    }
-}
-
-impl From<Arc<RwLock<Camera>>> for SceneObject {
-    fn from(value: Arc<RwLock<Camera>>) -> SceneObject {
-        SceneObject::Camera(value)
-    }
-}
-
-impl From<Player> for SceneObject {
-    fn from(value: Player) -> SceneObject {
-        SceneObject::Player(value)
     }
 }

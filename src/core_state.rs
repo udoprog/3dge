@@ -171,25 +171,25 @@ impl PlayerTransform for CoreState {
 
         if pressed_keys.test(Key::MoveLeft) {
             translation = Some(
-                translation.unwrap_or(self.no_movement) + Vector3::new(-0.02, 0.0, 0.0),
+                translation.unwrap_or(self.no_movement) + Vector3::new(0.1, 0.0, 0.0),
             );
         }
 
         if pressed_keys.test(Key::MoveRight) {
             translation = Some(
-                translation.unwrap_or(self.no_movement) + Vector3::new(0.02, 0.0, 0.0),
+                translation.unwrap_or(self.no_movement) + Vector3::new(-0.1, 0.0, 0.0),
             );
         }
 
         if pressed_keys.test(Key::MoveUp) {
             translation = Some(
-                translation.unwrap_or(self.no_movement) + Vector3::new(0.0, -0.02, 0.0),
+                translation.unwrap_or(self.no_movement) + Vector3::new(0.0, 0.0, 0.1),
             );
         }
 
         if pressed_keys.test(Key::MoveDown) {
             translation = Some(
-                translation.unwrap_or(self.no_movement) + Vector3::new(0.0, 0.02, 0.0),
+                translation.unwrap_or(self.no_movement) + Vector3::new(0.0, 0.0, -0.1),
             );
         }
 

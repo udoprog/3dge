@@ -10,23 +10,24 @@ use threedge::errors::*;
 use threedge::gltf_loader::GltfLoader;
 use threedge::player::Player;
 use threedge::scene::Scene;
+use threedge::static_entity::StaticEntity;
 
 struct SceneState {}
 
 fn setup_scene() -> Result<Scene<CoreState, SceneState>> {
-    let player_loader = GltfLoader::from_file("models/player.gltf")?;
-
-    let player_model = player_loader.model_from_node("Cube")?.ok_or(
-        ErrorKind::NoNode,
-    )?;
-
-    let player = Player::new(player_model);
-    let camera = Arc::new(RwLock::new(Camera::new(&player)));
-
+    let assets = GltfLoader::from_file("assets/assets.gltf")?;
     let mut scene = Scene::new(SceneState {});
 
+    let player = Player::new(assets.model_from_node("Player")?.ok_or(
+        ErrorKind::NoNode("Player"),
+    )?);
+    scene.register(Arc::new(RwLock::new(Camera::new(&player))));
     scene.register(player);
-    scene.register(camera);
+
+    let floor = StaticEntity::new(assets.model_from_node("Floor")?.ok_or(
+        ErrorKind::NoNode("Floor"),
+    )?);
+    scene.register(floor);
 
     Ok(scene)
 }

@@ -160,6 +160,18 @@ mod image {
     vulkan_link_error!(ImageCreationError);
 }
 
+mod sampler {
+    use vulkano::sampler::*;
+
+    error_chain! {
+        foreign_links {
+            SamplerCreationError(SamplerCreationError);
+        }
+    }
+
+    vulkan_link_error!(SamplerCreationError);
+}
+
 mod vulkano_win {
     use vulkano_win::*;
 
@@ -192,6 +204,7 @@ error_chain! {
         DescriptorSet(self::descriptor_set::Error, self::descriptor_set::ErrorKind);
         CpuAccess(self::cpu_access::Error, self::cpu_access::ErrorKind);
         Image(self::image::Error, self::image::ErrorKind);
+        Sampler(self::sampler::Error, self::sampler::ErrorKind);
     }
 }
 

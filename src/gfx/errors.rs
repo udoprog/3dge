@@ -2,6 +2,10 @@
 use super::vulkan::errors as vulkan;
 
 error_chain! {
+    foreign_links {
+        Image(::image::ImageError);
+    }
+
     links {
         Vulkan(vulkan::Error, vulkan::ErrorKind) #[cfg(feature = "gfx-vulkan")];
     }
@@ -35,6 +39,9 @@ error_chain! {
         }
 
         SendError {
+        }
+
+        MissingPreviousFrame {
         }
     }
 }

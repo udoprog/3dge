@@ -26,7 +26,7 @@ impl Camera {
     pub fn new(player: &GeometryObject) -> Camera {
         Camera {
             player: player.geometry(),
-            location: Point3::new(0.0, 1.0, 1.0),
+            location: Point3::new(0.0, -10.0, -2.0),
             zoom: 0.0,
         }
     }
@@ -78,13 +78,9 @@ impl<'a> CameraAccessor for RwLockWriteGuard<'a, Camera> {
         let player_pos = self.player.read_lock()?.position()?;
 
         let mut location = self.location;
-
-        // Slowly following camera, just to see some horizontal movement.
-        let inverse_zoom = 1.0 - self.zoom;
-
         location.x = player_pos.x;
-        location.y = player_pos.y + 5.0 * inverse_zoom;
-        location.z = 5.0 * inverse_zoom;
+        location.y = location.y + 10.0 * self.zoom;
+        location.z = player_pos.z - 2.0;
 
         let look_at = Matrix4::look_at(
             /// Where the camera is.
@@ -92,7 +88,7 @@ impl<'a> CameraAccessor for RwLockWriteGuard<'a, Camera> {
             /// Where we are looking at
             player_pos,
             /// What should be considered 'up'.
-            Vector3::new(0.0, 0.0, 1.0),
+            Vector3::new(0.0, 1.0, 0.0),
         );
 
         Ok(look_at)

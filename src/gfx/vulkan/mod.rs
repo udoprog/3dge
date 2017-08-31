@@ -11,12 +11,11 @@ mod vulkan_geometry;
 
 use self::shaders::basic::vs;
 pub use self::vulkan_gfx_instance::VulkanGfxInstance;
-use gfx::{Normal, Vertex};
+use gfx::Vertex;
 use vulkano::framebuffer;
 use vulkano::pipeline;
 
-impl_vertex!(Vertex, vertex);
-impl_vertex!(Normal, normal);
+impl_vertex!(Vertex, position, normal, tex_coord);
 
 pub type UniformGlobal = vs::ty::Global;
 pub type UniformModel = vs::ty::Model;

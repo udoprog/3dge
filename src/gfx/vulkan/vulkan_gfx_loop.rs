@@ -6,11 +6,12 @@ use super::vulkan_primitives::VulkanPrimitives;
 use cgmath::{Matrix4, Rad};
 use cgmath::prelude::*;
 use gfx::{GeometryId, Window};
-use gfx::{Normal, Vertex};
+use gfx::Vertex;
 use gfx::camera_object::CameraObject;
 use gfx::command::Command;
 use gfx::errors::*;
 use gfx::primitive::Primitive;
+use image;
 use std::collections::HashMap;
 use std::f32;
 use std::mem;
@@ -20,16 +21,19 @@ use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
 use vulkano::command_buffer::{AutoCommandBufferBuilder, DynamicState};
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 use vulkano::device::{Device, Queue};
-use vulkano::format::Format;
+use vulkano::format::{self, Format};
 use vulkano::framebuffer::{Framebuffer, FramebufferAbstract, FramebufferBuilder, Subpass};
 use vulkano::framebuffer::RenderPassAbstract;
 use vulkano::image::AttachmentImage;
+use vulkano::image::Dimensions;
 use vulkano::image::SwapchainImage;
+use vulkano::image::immutable::ImmutableImage;
 use vulkano::pipeline::{GraphicsPipeline, GraphicsPipelineAbstract};
-use vulkano::pipeline::vertex::TwoBuffersDefinition;
+use vulkano::pipeline::vertex::SingleBufferDefinition;
 use vulkano::pipeline::viewport::Viewport;
+use vulkano::sampler::{Filter, MipmapMode, Sampler, SamplerAddressMode};
 use vulkano::swapchain::{self, AcquireError, Swapchain};
-use vulkano::sync::{GpuFuture, now};
+use vulkano::sync::GpuFuture;
 
 pub struct VulkanGfxLoopTicker {
     recv: mpsc::Receiver<Command>,
@@ -42,6 +46,8 @@ pub struct VulkanGfxLoopTicker {
     pipeline: Arc<GraphicsPipelineAbstract + Send + Sync>,
     render_pass: Arc<RenderPassAbstract + Send + Sync>,
     depth_buffer: Arc<AttachmentImage>,
+    texture_sampler: Arc<Sampler>,
+    debug_image: Arc<ImmutableImage<format::R8G8B8A8Srgb>>,
     /// Current registered geometry.
     visible: HashMap<GeometryId, VulkanGeometry>,
     /// Current camera.
@@ -58,8 +64,6 @@ pub struct VulkanGfxLoopTicker {
 
 impl VulkanGfxLoopTicker {
     pub fn tick(&mut self) -> Result<()> {
-        self.check_for_updates()?;
-
         if let Some(ref mut previous_frame) = self.previous_frame {
             previous_frame.cleanup_finished();
         }
@@ -127,7 +131,7 @@ impl VulkanGfxLoopTicker {
             vec![[0.0, 0.0, 0.0, 1.0].into(), 1f32.into()],
         )?;
 
-        let uniform_buffer_set = {
+        let global_buffer = {
             let projection = ::cgmath::perspective(
                 Rad(f32::consts::FRAC_PI_2),
                 {
@@ -152,15 +156,11 @@ impl VulkanGfxLoopTicker {
                 projection: projection.into(),
             };
 
-            let uniform_buffer = CpuAccessibleBuffer::<UniformGlobal>::from_data(
+            CpuAccessibleBuffer::<UniformGlobal>::from_data(
                 self.device.clone(),
                 BufferUsage::all(),
                 global,
-            )?;
-
-            Arc::new(PersistentDescriptorSet::start(self.pipeline.clone(), 0)
-                .add_buffer(uniform_buffer.clone())?
-                .build()?)
+            )?
         };
 
         let state = DynamicState {
@@ -184,8 +184,9 @@ impl VulkanGfxLoopTicker {
             for p in &primitives.primitives {
                 let VulkanPrimitive {
                     ref vertex_buffer,
-                    ref normal_buffer,
                     ref index_buffer,
+                    ref color_texture,
+                    ..
                 } = *p;
 
                 let geometry = geometry.read_lock()?;
@@ -193,19 +194,24 @@ impl VulkanGfxLoopTicker {
 
                 let model = UniformModel { model: transformation.into() };
 
-                let uniform_buffer =
+                let model_buffer =
                     CpuAccessibleBuffer::from_data(self.device.clone(), BufferUsage::all(), model)?;
 
-                let position = Arc::new(PersistentDescriptorSet::start(self.pipeline.clone(), 0)
-                    .add_buffer(uniform_buffer.clone())?
+                let set = Arc::new(PersistentDescriptorSet::start(self.pipeline.clone(), 0)
+                    .add_buffer(global_buffer.clone())?
+                    .add_buffer(model_buffer.clone())?
+                    .build()?);
+
+                let texture = Arc::new(PersistentDescriptorSet::start(self.pipeline.clone(), 1)
+                    .add_sampled_image(color_texture.clone(), self.texture_sampler.clone())?
                     .build()?);
 
                 cb = cb.draw_indexed(
                         self.pipeline.clone(),
                         state.clone(),
-                        vec![vertex_buffer.clone(), normal_buffer.clone()],
+                        vec![vertex_buffer.clone()],
                         index_buffer.clone(),
-                        (uniform_buffer_set.clone(), position),
+                        (set, texture),
                         ()
                     )?;
             }
@@ -214,26 +220,44 @@ impl VulkanGfxLoopTicker {
         let cb = cb.end_render_pass()?;
         let cb = cb.build()?;
 
-        self.previous_frame = Some(if let Some(previous_frame) = self.previous_frame.take() {
-            Box::new(previous_frame
-                .join(acquire_future)
-                .then_execute(self.queue.clone(), cb)?
-                .then_swapchain_present(self.queue.clone(), self.swapchain.clone(), image_num)
-                .then_signal_fence_and_flush()?)
-        } else {
-            Box::new(acquire_future
-                .then_execute(self.queue.clone(), cb)?
-                .then_swapchain_present(self.queue.clone(), self.swapchain.clone(), image_num)
-                .then_signal_fence_and_flush()?)
-        });
+        let previous_frame = self.previous_frame.take().ok_or(
+            ErrorKind::MissingPreviousFrame,
+        )?;
+
+        let previous_frame: Box<GpuFuture> =
+            if let Some(update_future) = self.check_for_updates()? {
+                Box::new(previous_frame.join(update_future))
+            } else {
+                Box::new(previous_frame)
+            };
+
+        self.previous_frame = Some(Box::new(previous_frame
+            .join(acquire_future)
+            .then_execute(self.queue.clone(), cb)?
+            .then_swapchain_present(self.queue.clone(), self.swapchain.clone(), image_num)
+            .then_signal_fence_and_flush()?));
 
         Ok(())
     }
 
-    fn process_command(&mut self, command: Command) -> Result<()> {
+    fn new_or_old_future<F: 'static + GpuFuture>(
+        &mut self,
+        existing: Option<Box<GpuFuture>>,
+        future: F,
+    ) -> Option<Box<GpuFuture>> {
+        if let Some(existing) = existing {
+            Some(Box::new(existing.join(future)) as Box<GpuFuture>)
+        } else {
+            Some(Box::new(future) as Box<GpuFuture>)
+        }
+    }
+
+    fn process_command(&mut self, command: Command) -> Result<Option<Box<GpuFuture>>> {
         use self::Command::*;
 
         debug!("command: {:?}", command);
+
+        let mut future = None;
 
         match command {
             ClearCamera => {
@@ -250,8 +274,9 @@ impl VulkanGfxLoopTicker {
                 for p in g.primitives()?.primitives {
                     let Primitive {
                         vertices,
-                        normals,
                         indices,
+                        color_texture,
+                        ..
                     } = p;
 
                     let vertex_buffer = CpuAccessibleBuffer::from_iter(
@@ -260,22 +285,37 @@ impl VulkanGfxLoopTicker {
                         vertices.into_iter(),
                     )?;
 
-                    let normal_buffer = CpuAccessibleBuffer::from_iter(
-                        self.device.clone(),
-                        BufferUsage::all(),
-                        normals.into_iter(),
-                    )?;
-
                     let index_buffer = CpuAccessibleBuffer::from_iter(
                         self.device.clone(),
                         BufferUsage::all(),
                         indices.into_iter(),
                     )?;
 
+                    let color_texture = if let Some(color_texture) = color_texture {
+                        let (width, height) = color_texture.dimensions;
+
+                        info!("{:?}: loaded color texture ({}, {})", g.id(), width, height);
+
+                        let (image, tex_future) = ImmutableImage::from_iter(
+                            color_texture.image_data.into_iter(),
+                            Dimensions::Dim2d {
+                                width: width,
+                                height: height,
+                            },
+                            format::R8G8B8A8Srgb,
+                            self.queue.clone(),
+                        )?;
+
+                        future = self.new_or_old_future(future, tex_future);
+                        image
+                    } else {
+                        self.debug_image.clone()
+                    };
+
                     primitives.push(VulkanPrimitive::new(
                         vertex_buffer,
-                        normal_buffer,
                         index_buffer,
+                        color_texture,
                     ));
                 }
 
@@ -288,20 +328,26 @@ impl VulkanGfxLoopTicker {
             }
         }
 
-        Ok(())
+        Ok(future)
     }
 
     /// Check for geometry updates.
-    fn check_for_updates(&mut self) -> Result<()> {
+    fn check_for_updates(&mut self) -> Result<Option<Box<GpuFuture>>> {
+        let mut future = None;
+
         loop {
             match self.recv.try_recv() {
                 Err(mpsc::TryRecvError::Empty) => break,
                 Err(mpsc::TryRecvError::Disconnected) => return Err(ErrorKind::Disconnected.into()),
-                Ok(command) => self.process_command(command)?,
+                Ok(command) => {
+                    if let Some(added_future) = self.process_command(command)? {
+                        future = self.new_or_old_future(future, added_future);
+                    }
+                }
             }
         }
 
-        Ok(())
+        Ok(future)
     }
 }
 
@@ -367,7 +413,7 @@ impl VulkanGfxLoop {
 
         let pipeline: Arc<GraphicsPipelineAbstract + Send + Sync> =
             Arc::new(GraphicsPipeline::start()
-                .vertex_input(TwoBuffersDefinition::<Vertex, Normal>::new())
+                .vertex_input(SingleBufferDefinition::<Vertex>::new())
                 .vertex_shader(vs.main_entry_point(), ())
                 .triangle_list()
                 .viewports_dynamic_scissors_irrelevant(1)
@@ -379,8 +425,43 @@ impl VulkanGfxLoop {
         let depth_buffer =
             AttachmentImage::transient(self.device.clone(), dimensions, Format::D16Unorm)?;
 
-        let previous_frame = Some(Box::new(now(self.device.clone())) as Box<GpuFuture>);
         let dimensions = self.window.dimensions()?;
+
+        let texture_sampler = Sampler::new(
+            self.device.clone(),
+            Filter::Linear,
+            Filter::Linear,
+            MipmapMode::Nearest,
+            SamplerAddressMode::Repeat,
+            SamplerAddressMode::Repeat,
+            SamplerAddressMode::Repeat,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+        )?;
+
+        let (debug_image, debug_tex_future) = {
+            let image = image::load_from_memory_with_format(
+                include_bytes!("debug_512x512.png"),
+                image::ImageFormat::PNG,
+            )?
+                .to_rgba();
+
+            let image_data = image.into_raw();
+
+            ImmutableImage::from_iter(
+                image_data.into_iter(),
+                Dimensions::Dim2d {
+                    width: 512,
+                    height: 512,
+                },
+                format::R8G8B8A8Srgb,
+                self.queue.clone(),
+            )?
+        };
+
+        let previous_frame = Some(Box::new(debug_tex_future) as Box<GpuFuture>);
 
         return Ok(VulkanGfxLoopTicker {
             recv: self.recv,
@@ -392,6 +473,8 @@ impl VulkanGfxLoop {
             pipeline: pipeline,
             render_pass: render_pass,
             depth_buffer: depth_buffer,
+            texture_sampler: texture_sampler,
+            debug_image: debug_image,
             visible: HashMap::new(),
             camera: None,
             previous_frame: previous_frame,

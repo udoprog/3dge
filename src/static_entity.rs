@@ -1,6 +1,4 @@
-use super::errors::*;
 use super::model::Model;
-use super::scheduler::{Scheduler, SchedulerSetup};
 use cgmath::{Matrix4, Point3};
 use cgmath::prelude::*;
 use gfx::GeometryId;
@@ -12,15 +10,15 @@ use gfx::primitives::Primitives;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 
 #[derive(Debug)]
-pub struct PlayerGeometry {
+pub struct StaticEntityGeometry {
     id: GeometryId,
     location: Point3<f32>,
     model: Model,
 }
 
-impl PlayerGeometry {
-    pub fn new(model: Model) -> PlayerGeometry {
-        PlayerGeometry {
+impl StaticEntityGeometry {
+    pub fn new(model: Model) -> StaticEntityGeometry {
+        StaticEntityGeometry {
             id: GeometryId::allocate(),
             location: Point3::new(0.0, 0.0, 0.0),
             model: model,
@@ -28,17 +26,22 @@ impl PlayerGeometry {
     }
 }
 
-fn clamp(bottom: f32, top: f32, source: f32) -> f32 {
-    f32::min(top, f32::max(bottom, source))
+pub struct StaticEntity {
+    geometry: Arc<RwLock<StaticEntityGeometry>>,
 }
 
-pub struct Player {
-    geometry: Arc<RwLock<PlayerGeometry>>,
-}
+impl StaticEntity {
+    pub fn new(model: Model) -> StaticEntity {
+        StaticEntity { geometry: Arc::new(RwLock::new(StaticEntityGeometry::new(model))) }
+    }
 
-impl Player {
-    pub fn new(model: Model) -> Player {
-        Player { geometry: Arc::new(RwLock::new(PlayerGeometry::new(model))) }
+    pub fn transform(&mut self, transform: &Matrix4<f32>) -> gfx::Result<()> {
+        let mut g = self.geometry.write().map_err(
+            |_| gfx::ErrorKind::PoisonError,
+        )?;
+
+        g.location = transform.transform_point(g.location);
+        Ok(())
     }
 
     /// Get the position of the player.
@@ -50,13 +53,13 @@ impl Player {
     }
 }
 
-impl GeometryObject for Player {
+impl GeometryObject for StaticEntity {
     fn geometry(&self) -> Box<Geometry> {
         Box::new(self.geometry.clone())
     }
 }
 
-impl Geometry for Arc<RwLock<PlayerGeometry>> {
+impl Geometry for Arc<RwLock<StaticEntityGeometry>> {
     fn read_lock<'a>(&'a self) -> gfx::Result<Box<'a + GeometryAccessor>> {
         Ok(Box::new(
             self.read().map_err(|_| gfx::ErrorKind::PoisonError)?,
@@ -64,7 +67,7 @@ impl Geometry for Arc<RwLock<PlayerGeometry>> {
     }
 }
 
-impl<'a> GeometryAccessor for RwLockReadGuard<'a, PlayerGeometry> {
+impl<'a> GeometryAccessor for RwLockReadGuard<'a, StaticEntityGeometry> {
     fn id(&self) -> GeometryId {
         self.id
     }
@@ -79,27 +82,5 @@ impl<'a> GeometryAccessor for RwLockReadGuard<'a, PlayerGeometry> {
 
     fn primitives(&self) -> gfx::Result<Primitives> {
         Ok(self.model.primitives())
-    }
-}
-
-pub trait PlayerTransform {
-    fn player_transform(&mut self) -> Result<Option<Matrix4<f32>>>;
-}
-
-impl<S: PlayerTransform> SchedulerSetup<S> for Player {
-    fn setup_scheduler(&mut self, scheduler: &mut Scheduler<S>) {
-        let geometry = self.geometry.clone();
-
-        scheduler.on_every_tick(Box::new(move |_, gs| {
-            // perform player transform based on pressed keys
-            if let Some(transform) = gs.player_transform()? {
-                let mut g = geometry.write().map_err(|_| ErrorKind::PoisonError)?;
-                g.location = transform.transform_point(g.location);
-                g.location.x = clamp(-4.0, 4.0, g.location.x);
-                g.location.z = clamp(-4.0, 4.0, g.location.z);
-            }
-
-            Ok(())
-        }));
     }
 }

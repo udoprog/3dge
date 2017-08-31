@@ -9,7 +9,9 @@ pub fn debug() -> Result<Texture> {
     let image = image::load_from_memory_with_format(
         include_bytes!("debug_512x512.png"),
         image::ImageFormat::PNG,
-    )?;
+    )?
+        .to_rgba();
 
-    Ok(Texture::from_raw(image.to_rgba().into_raw()))
+    let dimensions = image.dimensions();
+    Ok(Texture::from_raw(image.into_raw(), dimensions))
 }
