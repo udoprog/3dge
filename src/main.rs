@@ -15,12 +15,16 @@ use threedge::static_entity::StaticEntity;
 struct SceneState {}
 
 fn setup_scene() -> Result<Scene<CoreState, SceneState>> {
-    let assets = GltfLoader::from_file("assets/assets.gltf")?;
-    let mut scene = Scene::new(SceneState {});
+    let player = GltfLoader::from_file("assets/player.gltf")?;
 
-    let player = Player::new(assets.model_from_node("Player")?.ok_or(
+    let player = Player::new(player.model_from_node("Player")?.ok_or(
         ErrorKind::NoNode("Player"),
     )?);
+
+    let assets = GltfLoader::from_file("assets/assets.gltf")?;
+
+    let mut scene = Scene::new(SceneState {});
+
     scene.register(Arc::new(RwLock::new(Camera::new(&player))));
     scene.register(player);
 
