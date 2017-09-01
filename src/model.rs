@@ -53,12 +53,13 @@ impl Model {
 
             let material = p.material();
 
-            let mut color_texture = None;
-
             let pbr_metallic_roughness = material.pbr_metallic_roughness();
 
-            if let Some(base_color_texture) = pbr_metallic_roughness.base_color_texture() {
-                let texture = base_color_texture.texture();
+            let base_color_factor = pbr_metallic_roughness.base_color_factor().into();
+            let mut base_color_texture = None;
+
+            if let Some(base_color_texture_in) = pbr_metallic_roughness.base_color_texture() {
+                let texture = base_color_texture_in.texture();
                 let source = texture.source();
                 let data = source.data();
 
@@ -66,12 +67,13 @@ impl Model {
                     Data::Uri { uri, mime_type } => {
                         if let Some(parent) = path.parent() {
                             let path = parent.join(uri);
-                            color_texture = Some(texture::load_from_path(mime_type, &path)?);
+                            base_color_texture = Some(texture::load_from_path(mime_type, &path)?);
                         }
                     }
                     Data::View { view, mime_type } => {
                         if let Some(buffer) = buffers.view(&view) {
-                            color_texture = Some(texture::load_from_memory(mime_type, buffer)?);
+                            base_color_texture =
+                                Some(texture::load_from_memory(mime_type, buffer)?);
                         }
                     }
                 }
@@ -79,8 +81,9 @@ impl Model {
 
             primitives.push(Primitive {
                 vertices: vertices,
-                color_texture: color_texture,
                 indices: indices,
+                base_color_factor: base_color_factor,
+                base_color_texture: base_color_texture,
             });
         }
 

@@ -185,14 +185,20 @@ impl VulkanGfxLoopTicker {
                 let VulkanPrimitive {
                     ref vertex_buffer,
                     ref index_buffer,
-                    ref color_texture,
+                    ref base_color_factor,
+                    ref base_color_texture,
+                    ref use_base_color_texture,
                     ..
                 } = *p;
 
                 let geometry = geometry.read_lock()?;
                 let transformation = geometry.transformation()?;
 
-                let model = UniformModel { model: transformation.into() };
+                let model = UniformModel {
+                    model: transformation.into(),
+                    base_color_factor: *base_color_factor,
+                    use_base_color_texture: *use_base_color_texture as u32,
+                };
 
                 let model_buffer =
                     CpuAccessibleBuffer::from_data(self.device.clone(), BufferUsage::all(), model)?;
@@ -203,7 +209,7 @@ impl VulkanGfxLoopTicker {
                     .build()?);
 
                 let texture = Arc::new(PersistentDescriptorSet::start(self.pipeline.clone(), 1)
-                    .add_sampled_image(color_texture.clone(), self.texture_sampler.clone())?
+                    .add_sampled_image(base_color_texture.clone(), self.texture_sampler.clone())?
                     .build()?);
 
                 cb = cb.draw_indexed(
@@ -275,7 +281,8 @@ impl VulkanGfxLoopTicker {
                     let Primitive {
                         vertices,
                         indices,
-                        color_texture,
+                        base_color_factor,
+                        base_color_texture,
                         ..
                     } = p;
 
@@ -291,31 +298,34 @@ impl VulkanGfxLoopTicker {
                         indices.into_iter(),
                     )?;
 
-                    let color_texture = if let Some(color_texture) = color_texture {
-                        let (width, height) = color_texture.dimensions;
+                    let (base_color_texture, use_base_color_texture) =
+                        if let Some(base_color_texture) = base_color_texture {
+                            let (width, height) = base_color_texture.dimensions;
 
-                        info!("{:?}: loaded color texture ({}, {})", g.id(), width, height);
+                            info!("{:?}: loaded color texture ({}, {})", g.id(), width, height);
 
-                        let (image, tex_future) = ImmutableImage::from_iter(
-                            color_texture.image_data.into_iter(),
-                            Dimensions::Dim2d {
-                                width: width,
-                                height: height,
-                            },
-                            format::R8G8B8A8Srgb,
-                            self.queue.clone(),
-                        )?;
+                            let (image, tex_future) = ImmutableImage::from_iter(
+                                base_color_texture.image_data.into_iter(),
+                                Dimensions::Dim2d {
+                                    width: width,
+                                    height: height,
+                                },
+                                format::R8G8B8A8Srgb,
+                                self.queue.clone(),
+                            )?;
 
-                        future = self.new_or_old_future(future, tex_future);
-                        image
-                    } else {
-                        self.debug_image.clone()
-                    };
+                            future = self.new_or_old_future(future, tex_future);
+                            (image, true)
+                        } else {
+                            (self.debug_image.clone(), false)
+                        };
 
                     primitives.push(VulkanPrimitive::new(
                         vertex_buffer,
                         index_buffer,
-                        color_texture,
+                        base_color_factor.into(),
+                        base_color_texture,
+                        use_base_color_texture,
                     ));
                 }
 

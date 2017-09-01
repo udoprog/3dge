@@ -1,4 +1,5 @@
 use super::Vertex;
+use super::color::Color;
 use std::fmt;
 use texture::Texture;
 
@@ -6,19 +7,22 @@ use texture::Texture;
 pub struct Primitive {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
-    pub color_texture: Option<Texture>,
+    pub base_color_factor: Color,
+    pub base_color_texture: Option<Texture>,
 }
 
 impl Primitive {
     pub fn new(
         vertices: Vec<Vertex>,
         indices: Vec<u32>,
-        color_texture: Option<Texture>,
+        base_color_factor: Color,
+        base_color_texture: Option<Texture>,
     ) -> Primitive {
         Primitive {
             vertices: vertices,
             indices: indices,
-            color_texture: color_texture,
+            base_color_factor: base_color_factor,
+            base_color_texture: base_color_texture,
         }
     }
 }

@@ -26,7 +26,7 @@ impl Camera {
     pub fn new(player: &GeometryObject) -> Camera {
         Camera {
             player: player.geometry(),
-            location: Point3::new(0.0, -10.0, -2.0),
+            location: Point3::new(0.0, 0.0, 0.0),
             zoom: 0.0,
         }
     }
@@ -78,9 +78,9 @@ impl<'a> CameraAccessor for RwLockWriteGuard<'a, Camera> {
         let player_pos = self.player.read_lock()?.position()?;
 
         let mut location = self.location;
-        location.x = player_pos.x;
-        location.y = location.y + 10.0 * self.zoom;
-        location.z = player_pos.z - 2.0;
+        // location.x = player_pos.x;
+        location.y = location.y - 10.0 + 10.0 * self.zoom;
+        location.z = player_pos.z - 10.0 + 10.0 * self.zoom;
 
         let look_at = Matrix4::look_at(
             /// Where the camera is.
