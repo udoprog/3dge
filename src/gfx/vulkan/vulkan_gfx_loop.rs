@@ -125,8 +125,15 @@ impl VulkanGfxLoopTicker {
             self.queue.family(),
         )?;
 
+        // Get the selected framebuffer.
+        let current_framebuffer = self.framebuffers
+            .as_ref()
+            .and_then(|fb| fb.get(image_num))
+            .ok_or(ErrorKind::NoFramebuffer)?
+            .clone();
+
         cb = cb.begin_render_pass(
-            self.framebuffers.as_ref().unwrap()[image_num].clone(),
+            current_framebuffer,
             false,
             vec![[0.0, 0.0, 0.0, 1.0].into(), 1f32.into()],
         )?;

@@ -35,6 +35,9 @@ error_chain! {
         NoWindowDimensions {
         }
 
+        NoFramebuffer {
+        }
+
         Disconnected {
         }
 
